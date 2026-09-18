@@ -1,0 +1,4 @@
+# Session completion system notification plugin (client half + durable settings namespace).
+- insert:
+    - id: ui-task-notify
+      name: "dsh-client-ui-task-notify"

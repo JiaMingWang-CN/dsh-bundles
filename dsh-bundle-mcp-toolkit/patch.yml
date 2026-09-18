@@ -1,0 +1,22 @@
+# MCP servers: each entry launches one external MCP server over stdio and
+# exposes its tools as mcp__<serverName>__<tool>. codegraph answers queries
+# for ANY project that has a .codegraph/ index via its per-call `projectPath`
+# argument. Commands use `npx -y` so no global install is required
+# (first launch downloads the package; codegraph requires a .codegraph/
+# index in the queried project — create one with `codegraph init`).
+- insert:
+    - id: mcp-codegraph
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: codegraph
+        transport: stdio
+        command: npx
+        args: ['-y', 'codegraph', 'serve', '--mcp']
+        toolCallTimeoutMs: 120000
+    - id: mcp-context7
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: context7
+        transport: stdio
+        command: npx
+        args: ['-y', '@upstash/context7-mcp']

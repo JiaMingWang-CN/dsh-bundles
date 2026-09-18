@@ -1,0 +1,11 @@
+{
+  "name": "dsh-bundle-mcp-toolkit",
+  "version": "1.0.0",
+  "description": "MCP toolkit bundle: codegraph and context7 MCP servers as stdio clients",
+  "type": "module",
+  "dsh": {
+    "bundle": {
+      "patch": "./patch.yml"
+    }
+  }
+}
