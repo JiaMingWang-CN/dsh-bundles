@@ -12,28 +12,24 @@ bundle 包，通过官方插件通道一键安装到 web profile。
 
 ## 安装
 
-```powershell
-dsh plugin --profile web add -w <包路径或 git 地址>
-```
-
-本地目录（开发机）：
-
-```powershell
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
-```
-
-git 单仓库子目录安装（已在全新 profile 端到端实测）：
+已安装 [dsh](https://www.npmjs.com/package/@deepseek-ai/dsh) 后，执行两条命令即可（已在全新 profile 端到端实测）：
 
 ```powershell
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-task-notify"
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
 ```
 
-> git 安装时 pnpm 会自动装入包内依赖（`@deepseek-ai/schemastery` 等），无需手动
-> `pnpm install`；首次启动时 MCP server 通过 `npx -y` 拉取，会稍慢。
+- git 安装时 pnpm 会自动装入包内依赖（`@deepseek-ai/schemastery` 等），无需手动 `pnpm install`；
+- 首次启动时 MCP server 通过 `npx -y` 拉取，会稍慢；
+- 安装后 `dsh --profile web --dump-config` 可确认 bundle 已进入层栈，重启 dsh 生效；
+- 卸载：`dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-bundle-mcp-toolkit`。
 
-安装后 `dsh --profile web --dump-config` 可确认 bundle 已进入层栈；重启 dsh 生效。
+本地开发安装（克隆本仓库后用本地路径，改源码即时生效）：
+
+```powershell
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
+```
 
 ## 开发说明
 
