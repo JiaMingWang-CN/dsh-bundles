@@ -23,15 +23,15 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 ```
 
-git 单仓库子目录安装（pnpm `#path:` 参数）：
+git 单仓库子目录安装（已在全新 profile 端到端实测）：
 
 ```powershell
-dsh plugin --profile web add -w "github:<user>/dsh-bundles#path:dsh-client-ui-task-notify"
-dsh plugin --profile web add -w "github:<user>/dsh-bundles#path:dsh-bundle-mcp-toolkit"
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-task-notify"
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
 ```
 
-> `#path:` 与 `dsh plugin` 转发的组合尚未实测；若失败，可将两个子目录拆成独立仓库，
-> 或克隆本仓库后用本地路径安装。
+> git 安装时 pnpm 会自动装入包内依赖（`@deepseek-ai/schemastery` 等），无需手动
+> `pnpm install`；首次启动时 MCP server 通过 `npx -y` 拉取，会稍慢。
 
 安装后 `dsh --profile web --dump-config` 可确认 bundle 已进入层栈；重启 dsh 生效。
 
