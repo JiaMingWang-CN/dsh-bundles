@@ -12,7 +12,14 @@ bundle 包，通过官方插件通道一键安装到 web profile。
 
 ## 安装
 
-已安装 [dsh](https://www.npmjs.com/package/@deepseek-ai/dsh) 后，执行两条命令即可（已在全新 profile 端到端实测）：
+### 前置条件
+
+MCP 工具集依赖以下两个工具，请先按各自仓库的教程安装并确认命令可用（`codegraph --version`、`context7-mcp --help`）：
+
+- **CodeGraph**：https://github.com/colbymchenry/codegraph
+- **Context7**：https://github.com/upstash/context7
+
+已安装 dsh 后，执行两条命令即可（已在全新 profile 端到端实测）：
 
 ```powershell
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-task-notify"
