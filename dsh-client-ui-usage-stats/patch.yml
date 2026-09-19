@@ -1,0 +1,4 @@
+# Provider/model token usage statistics (host aggregator + client settings section).
+- insert:
+    - id: ui-usage-stats
+      name: "dsh-client-ui-usage-stats"
