@@ -30,7 +30,7 @@ window.__ModuleLoader__.load({
 			'.dsh-usage-sectionbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:2px}' +
 			'.dsh-usage-sectiontitle{margin:0;font-size:16px;font-weight:650;letter-spacing:-.1px}' +
 			'.dsh-usage-seg{display:inline-flex;align-items:center;gap:24px}' +
-			'.dsh-usage-segbtn{position:relative;padding:5px 0 7px;border:0;font:inherit;font-size:12.5px;cursor:pointer;background:transparent;color:var(--dsw-alias-label-tertiary);transition:color .15s}' +
+			'.dsh-usage-segbtn{position:relative;width:48px;padding:5px 0 7px;border:0;font:inherit;font-size:12.5px;text-align:center;cursor:pointer;background:transparent;color:var(--dsw-alias-label-tertiary);transition:color .15s}' +
 			'.dsh-usage-segbtn:hover,.dsh-usage-segbtn.on{color:var(--dsw-alias-label-primary)}' +
 			'.dsh-usage-segbtn.on{font-weight:600}' +
 			'.dsh-usage-segbtn.on:after{content:"";position:absolute;left:50%;bottom:0;width:12px;height:2px;border-radius:1px;background:var(--dsw-alias-brand-primary);transform:translateX(-50%)}' +
@@ -241,6 +241,7 @@ window.__ModuleLoader__.load({
 					: { phase: "ready", data: lastPayload, error: "" }
 			));
 			const [mode, setMode] = React.useState(MODE_PROVIDERS);
+			const pageRef = React.useRef(null);
 			/* Subagent sessions are always part of the corpus; the host half decides. */
 			const load = () => {
 				setState((current) => ({ ...current, phase: current.data === null ? "loading" : current.phase }));
@@ -257,15 +258,26 @@ window.__ModuleLoader__.load({
 					.catch((error) => setState({ phase: "error", data: null, error: String((error && error.message) || error) }));
 			};
 			React.useEffect(() => { load(); }, []);
+			/* Keep the settings scrollport width stable when views have different heights. */
+			React.useEffect(() => {
+				let scrollport = pageRef.current?.parentElement ?? null;
+				while (scrollport !== null && !/(auto|scroll|overlay)/.test(getComputedStyle(scrollport).overflowY)) {
+					scrollport = scrollport.parentElement;
+				}
+				if (scrollport === null) return undefined;
+				const previous = scrollport.style.scrollbarGutter;
+				scrollport.style.scrollbarGutter = "stable";
+				return () => { scrollport.style.scrollbarGutter = previous; };
+			}, []);
 			const data = state.data;
 			if (state.phase === "error" && data === null) {
-				return React.createElement("div", { className: "dsh-usage-page" },
+				return React.createElement("div", { className: "dsh-usage-page", ref: pageRef },
 					React.createElement("div", { className: "dsh-usage-error" }, "统计失败：" + state.error),
 					React.createElement("button", { type: "button", className: "dsh-usage-btn", onClick: load }, "重试"),
 				);
 			}
 			if (data === null) {
-				return React.createElement("div", { className: "dsh-usage-page" },
+				return React.createElement("div", { className: "dsh-usage-page", ref: pageRef },
 					React.createElement("div", { className: "dsh-usage-loading" }, "正在统计各提供商与模型的用量…"),
 				);
 			}
@@ -274,7 +286,7 @@ window.__ModuleLoader__.load({
 				: data.totals.sessions === 0
 					? React.createElement("div", { className: "dsh-usage-status" }, "暂无可统计的会话")
 					: null;
-			return React.createElement("div", { className: "dsh-usage-page" },
+			return React.createElement("div", { className: "dsh-usage-page", ref: pageRef },
 				React.createElement(TotalsCard, { totals: data.totals }),
 				status,
 				React.createElement("div", { className: "dsh-usage-sectionbar" },
