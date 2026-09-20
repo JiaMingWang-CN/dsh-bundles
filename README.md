@@ -33,7 +33,7 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bund
 - 安装后 `dsh --profile web --dump-config` 可确认 bundle 已进入层栈；profile 的
   `patchReload: live` 会让正在运行的 dsh 直接热加载新 bundle（无需重启，刷新页面即可）；
 - 卸载：`dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit`；
-- 更新：`dsh plugin --profile web update dsh-client-ui-usage-stats`（包规格未钉 commit、
+- 更新：`dsh plugin --profile web update dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit`（包规格未钉 commit、
   只钉默认分支，pnpm 会重新解析并拉回 `main` 最新状态；只替换 profile 的 `node_modules`，
   不碰会话日志与设置）。**注意生效范围**：`patchReload: live` 只热重建客户端 bundle，
   所以只改了 `lib/client.js` 时刷新页面即生效；改了 host half（`lib/index.js`）则需重启
