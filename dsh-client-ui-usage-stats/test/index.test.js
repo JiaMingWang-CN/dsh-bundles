@@ -72,6 +72,26 @@ test('replacement through another route removes the empty old group', () => {
 	assert.equal(groups.get('new-provider\0new-model').input, 1);
 });
 
+test('report exposes the real token composition for the overview', () => {
+	const payload = testing.report({
+		byRoute: new Map(),
+		byModel: new Map(),
+		sessions: [],
+		totals: { input: 10, cacheRead: 20, cacheWrite: 0, output: 30, reasoning: 5, requests: 2, sessions: 1 },
+		listed: 1,
+		skipped: 0,
+		excluded: 0,
+		decoded: 1,
+	}, 0);
+
+	assert.deepEqual(payload.totals.composition.map(({ id, share }) => ({ id, share })), [
+		{ id: 'input', share: 16.7 },
+		{ id: 'cacheRead', share: 33.3 },
+		{ id: 'cacheWrite', share: 0 },
+		{ id: 'output', share: 50 },
+	]);
+});
+
 test('session root honors DSH_HOME and retains the default fallback', () => {
 	assert.equal(testing.sessionsRoot({ DSH_HOME: join('custom', 'dsh') }, 'home'), join('custom', 'dsh', 'sessions'));
 	assert.equal(testing.sessionsRoot({}, 'home'), join('home', '.dsh', 'sessions'));

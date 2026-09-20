@@ -509,6 +509,12 @@ function report(collected, generatedAt) {
 			sessions: collected.totals.sessions,
 			total: totalOf(collected.totals),
 			text: textOf(collected.totals),
+			composition: [
+				{ id: 'input', label: '输入', text: formatCount(collected.totals.input), share: shareOf(collected.totals.input, grand) },
+				{ id: 'cacheRead', label: '缓存读取', text: formatCount(collected.totals.cacheRead), share: shareOf(collected.totals.cacheRead, grand) },
+				{ id: 'cacheWrite', label: '缓存写入', text: formatCount(collected.totals.cacheWrite), share: shareOf(collected.totals.cacheWrite, grand) },
+				{ id: 'output', label: '输出', text: formatCount(collected.totals.output), share: shareOf(collected.totals.output, grand) },
+			],
 		},
 		providers,
 		models,
@@ -598,6 +604,6 @@ function storeSignature() {
 	return parts.join('|');
 }
 
-const testing = { foldSession, sessionsRoot, walkFiles };
+const testing = { foldSession, report, sessionsRoot, walkFiles };
 
 export { apply, inject, name, testing };

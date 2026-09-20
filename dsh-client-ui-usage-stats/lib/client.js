@@ -7,48 +7,69 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		const React = react;
 		//#region lib/client.js
-		/** Quiet, data-first panel styled only with the shell's theme tokens. */
-		const CSS = '.dsh-usage-page{box-sizing:border-box;width:100%;max-width:980px;display:flex;flex-direction:column;gap:22px;color:var(--dsw-alias-label-primary)}' +
-			'.dsh-usage-btn{box-sizing:border-box;padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;background:transparent;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);transition:background .15s,color .15s}' +
-			'.dsh-usage-btn:hover:not(:disabled){color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}' +
-			'.dsh-usage-card{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:18px 0;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent}' +
-			'.dsh-usage-metric{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:2px 12px;text-align:center;border-left:1px solid var(--dsw-alias-border-l1)}' +
-			'.dsh-usage-metric:first-child{border-left:none}' +
-			'.dsh-usage-metric-label{font-size:11.5px;font-weight:500;color:var(--dsw-alias-label-tertiary);white-space:nowrap}' +
-			'.dsh-usage-metric-value{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:17px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums;white-space:nowrap}' +
-			'.dsh-usage-metric.featured .dsh-usage-metric-value{font-size:21px}' +
-			'.dsh-usage-sectionbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:6px}' +
-			'.dsh-usage-sectiontitle{margin:0;font-size:15px;font-weight:600}' +
-			'.dsh-usage-seg{display:inline-flex;align-items:center;gap:20px}' +
-			'.dsh-usage-segbtn{position:relative;padding:5px 0;border:0;font:inherit;font-size:12.5px;cursor:pointer;background:transparent;color:var(--dsw-alias-label-tertiary);transition:color .15s}' +
+		/** Data-first dashboard styled exclusively with the shell's theme tokens. */
+		const CSS = '.dsh-usage-page{box-sizing:border-box;width:100%;display:flex;flex-direction:column;gap:24px;color:var(--dsw-alias-label-primary)}' +
+			'.dsh-usage-btn{align-self:flex-start;box-sizing:border-box;padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;background:transparent;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}' +
+			'.dsh-usage-btn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}' +
+			'.dsh-usage-overview{padding:26px 28px 22px;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent}' +
+			'.dsh-usage-overview-main{display:grid;grid-template-columns:minmax(190px,.72fr) minmax(0,1.6fr);align-items:stretch}' +
+			'.dsh-usage-hero{display:flex;flex-direction:column;justify-content:center;min-width:0;padding-right:28px;border-right:1px solid var(--dsw-alias-border-l1)}' +
+			'.dsh-usage-eyebrow,.dsh-usage-metric-label{font-size:11px;font-weight:500;color:var(--dsw-alias-label-tertiary)}' +
+			'.dsh-usage-hero-value{margin-top:7px;font-size:32px;font-weight:650;line-height:1.08;letter-spacing:-.7px;font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-hero-meta{margin-top:9px;font-size:11.5px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px 24px;padding-left:28px}' +
+			'.dsh-usage-metric{min-width:0;display:flex;flex-direction:column;gap:5px}' +
+			'.dsh-usage-metric-value{overflow:hidden;text-overflow:ellipsis;font-size:15px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}' +
+			'.dsh-usage-composition{margin-top:23px;padding-top:18px;border-top:1px solid var(--dsw-alias-border-l1)}' +
+			'.dsh-usage-composition-bar{display:flex;width:100%;height:7px;overflow:hidden;border-radius:4px;background:var(--dsw-alias-bg-layer-2)}' +
+			'.dsh-usage-composition-piece{height:100%;background:var(--dsw-alias-brand-primary)}' +
+			'.dsh-usage-composition-legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:11px}' +
+			'.dsh-usage-legend-item{min-width:0;display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--dsw-alias-label-tertiary)}' +
+			'.dsh-usage-legend-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--dsw-alias-brand-primary)}' +
+			'.dsh-usage-legend-value{margin-left:auto;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}' +
+			'.dsh-usage-sectionbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:2px}' +
+			'.dsh-usage-sectiontitle{margin:0;font-size:16px;font-weight:650;letter-spacing:-.1px}' +
+			'.dsh-usage-seg{display:inline-flex;align-items:center;gap:24px}' +
+			'.dsh-usage-segbtn{position:relative;padding:5px 0 7px;border:0;font:inherit;font-size:12.5px;cursor:pointer;background:transparent;color:var(--dsw-alias-label-tertiary);transition:color .15s}' +
 			'.dsh-usage-segbtn:hover,.dsh-usage-segbtn.on{color:var(--dsw-alias-label-primary)}' +
 			'.dsh-usage-segbtn.on{font-weight:600}' +
+			'.dsh-usage-segbtn.on:after{content:"";position:absolute;left:50%;bottom:0;width:12px;height:2px;border-radius:1px;background:var(--dsw-alias-brand-primary);transform:translateX(-50%)}' +
 			'.dsh-usage-list{display:flex;flex-direction:column;gap:14px}' +
-			'.dsh-usage-provcard{border:1px solid var(--dsw-alias-border-l2);border-radius:14px;overflow:auto;background:transparent}' +
-			'.dsh-usage-provhead{min-width:570px;display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--dsw-alias-border-l2)}' +
-			'.dsh-usage-provname{font-size:13.5px;font-weight:600}' +
-			'.dsh-usage-provmeta{font-size:11.5px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}' +
-			'.dsh-usage-provtotal{margin-left:auto;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}' +
-			'.dsh-usage-table{width:100%;min-width:570px;border-collapse:collapse;font-size:12.5px}' +
-			'.dsh-usage-table th{text-align:left;font-weight:500;font-size:11px;color:var(--dsw-alias-label-tertiary);padding:10px 18px 8px;border-bottom:1px solid var(--dsw-alias-border-l1)}' +
-			'.dsh-usage-table td{padding:11px 18px;border-bottom:1px solid var(--dsw-alias-border-l1);vertical-align:middle}' +
-			'.dsh-usage-table tbody tr{transition:background .12s}' +
-			'.dsh-usage-table tbody tr:hover{background:var(--dsw-alias-interactive-bg-hover)}' +
-			'.dsh-usage-table tr:last-child td{border-bottom:none}' +
-			'.dsh-usage-num{font-variant-numeric:tabular-nums}' +
-			'.dsh-usage-sub{font-size:10.5px;line-height:1.45;color:var(--dsw-alias-label-tertiary);margin-top:3px;white-space:nowrap}' +
-			'.dsh-usage-model{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px}' +
-			'.dsh-usage-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}' +
-			'.dsh-usage-chip{font-size:10px;line-height:17px;padding:0 7px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}' +
-			'.dsh-usage-bar{display:flex;align-items:center;gap:9px}' +
-			'.dsh-usage-bartrack{flex:1;height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);overflow:hidden;min-width:64px}' +
+			'.dsh-usage-panel{overflow:hidden;border:1px solid var(--dsw-alias-border-l2);border-radius:15px;background:transparent}' +
+			'.dsh-usage-provider-head{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--dsw-alias-border-l1)}' +
+			'.dsh-usage-rank{font-size:11px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-provider-name{overflow:hidden;text-overflow:ellipsis;font-size:14px;font-weight:650;white-space:nowrap}' +
+			'.dsh-usage-provider-meta{margin-top:4px;font-size:10.5px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-provider-total{text-align:right;font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-provider-value{font-size:17px;font-weight:650;white-space:nowrap}' +
+			'.dsh-usage-provider-share{margin-top:3px;font-size:10.5px;color:var(--dsw-alias-label-tertiary)}' +
+			'.dsh-usage-row{display:grid;grid-template-columns:minmax(0,1.15fr) 58px minmax(170px,1.25fr) minmax(90px,.65fr);grid-template-areas:"main requests token share";align-items:center;gap:16px;padding:13px 20px;border-bottom:1px solid var(--dsw-alias-border-l1);transition:background .12s}' +
+			'.dsh-usage-row:last-child{border-bottom:0}' +
+			'.dsh-usage-row:hover{background:var(--dsw-alias-interactive-bg-hover)}' +
+			'.dsh-usage-row-main{grid-area:main;min-width:0}' +
+			'.dsh-usage-row-requests{grid-area:requests;font-size:12px;font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-row-token{grid-area:token;min-width:0;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-row-share{grid-area:share;min-width:0}' +
+			'.dsh-usage-mini-label{display:block;margin-top:3px;font-size:9.5px;font-weight:400;color:var(--dsw-alias-label-tertiary)}' +
+			'.dsh-usage-model{display:block;overflow:hidden;text-overflow:ellipsis;font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:11.5px;white-space:nowrap}' +
+			'.dsh-usage-sub{overflow:hidden;text-overflow:ellipsis;margin-top:4px;font-size:10px;font-weight:400;line-height:1.4;color:var(--dsw-alias-label-tertiary);white-space:nowrap}' +
+			'.dsh-usage-chips{display:flex;overflow:hidden;gap:5px;margin-top:5px}' +
+			'.dsh-usage-chip{max-width:120px;overflow:hidden;text-overflow:ellipsis;font-size:9.5px;line-height:17px;padding:0 7px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);white-space:nowrap}' +
+			'.dsh-usage-bar{display:flex;align-items:center;gap:8px}' +
+			'.dsh-usage-bartrack{flex:1;height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);overflow:hidden}' +
 			'.dsh-usage-barfill{height:100%;border-radius:3px;background:var(--dsw-alias-brand-primary)}' +
-			'.dsh-usage-status{margin-top:-10px;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}' +
+			'.dsh-usage-share-value{width:38px;text-align:right;font-size:10.5px;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-session-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px;padding:15px 20px;border-bottom:1px solid var(--dsw-alias-border-l1)}' +
+			'.dsh-usage-session-row:last-child{border-bottom:0}' +
+			'.dsh-usage-session-side{text-align:right;font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-session-total{margin-top:5px;font-size:14px;font-weight:600}' +
+			'.dsh-usage-num{font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-status{margin-top:-12px;font-size:11px;color:var(--dsw-alias-label-tertiary)}' +
 			'.dsh-usage-warn{color:var(--dsw-alias-state-warn-primary)}' +
-			'.dsh-usage-error{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--dsw-alias-state-error-primary)}' +
+			'.dsh-usage-error{font-size:12.5px;color:var(--dsw-alias-state-error-primary)}' +
 			'.dsh-usage-loading{font-size:12.5px;color:var(--dsw-alias-label-tertiary)}' +
-			'@media(max-width:760px){.dsh-usage-page{gap:18px}.dsh-usage-card{grid-template-columns:repeat(4,minmax(0,1fr));padding:8px 0}.dsh-usage-metric{margin:8px 0}.dsh-usage-metric:nth-child(4n+1){border-left:none}.dsh-usage-sectionbar{align-items:flex-end}.dsh-usage-seg{gap:14px}}' +
-			'@media(max-width:480px){.dsh-usage-card{grid-template-columns:repeat(2,minmax(0,1fr))}.dsh-usage-metric:nth-child(odd){border-left:none}.dsh-usage-sectionbar{align-items:flex-start;flex-direction:column;gap:8px}.dsh-usage-seg{width:100%;justify-content:space-between}}';
+			'@media(max-width:720px){.dsh-usage-overview{padding:22px}.dsh-usage-overview-main{grid-template-columns:1fr}.dsh-usage-hero{padding:0 0 20px;border-right:0;border-bottom:1px solid var(--dsw-alias-border-l1)}.dsh-usage-metrics{padding:20px 0 0}.dsh-usage-row{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"main token" "requests share";gap:10px 16px}.dsh-usage-row-token,.dsh-usage-row-share{text-align:right}.dsh-usage-bar{justify-content:flex-end}.dsh-usage-bartrack{max-width:84px}.dsh-usage-row-requests .dsh-usage-mini-label{display:inline;margin-left:4px}}' +
+			'@media(max-width:500px){.dsh-usage-page{gap:20px}.dsh-usage-overview{padding:20px 18px}.dsh-usage-hero-value{font-size:28px}.dsh-usage-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 20px}.dsh-usage-composition-legend{grid-template-columns:repeat(2,minmax(0,1fr))}.dsh-usage-sectionbar{align-items:flex-start;flex-direction:column;gap:9px}.dsh-usage-seg{width:100%;justify-content:space-between}.dsh-usage-provider-head{grid-template-columns:minmax(0,1fr) auto;padding:14px 16px}.dsh-usage-rank{display:none}.dsh-usage-row,.dsh-usage-session-row{padding-left:16px;padding-right:16px}.dsh-usage-provider-value{font-size:15px}.dsh-usage-session-row{align-items:flex-start;grid-template-columns:1fr}.dsh-usage-session-side{text-align:left}}';
 		/** Stable Cordis plugin name. */
 		const name = "ui-usage-stats";
 		/** The settings seat is the only client service this half needs, declared as a
@@ -63,9 +84,9 @@ window.__ModuleLoader__.load({
 		/** Last successful payload, so a reopened panel has something to paint. */
 		let lastPayload = null;
 
-		/** One value-first metric cell, matching the shell's compact dashboard language. */
-		function metric(label, value, featured = false) {
-			return React.createElement("div", { className: "dsh-usage-metric" + (featured ? " featured" : "") },
+		/** One compact secondary metric. */
+		function metric(label, value) {
+			return React.createElement("div", { className: "dsh-usage-metric" },
 				React.createElement("span", { className: "dsh-usage-metric-value", title: value }, value),
 				React.createElement("span", { className: "dsh-usage-metric-label" }, label),
 			);
@@ -77,7 +98,7 @@ window.__ModuleLoader__.load({
 				React.createElement("div", { className: "dsh-usage-bartrack" },
 					React.createElement("div", { className: "dsh-usage-barfill", style: { width: Math.min(100, Math.max(0, share)) + "%" } }),
 				),
-				React.createElement("span", { className: "dsh-usage-num" }, share + "%"),
+				React.createElement("span", { className: "dsh-usage-share-value" }, share + "%"),
 			);
 		}
 
@@ -86,122 +107,118 @@ window.__ModuleLoader__.load({
 			const parts = ["输入 " + text.input, "缓存读 " + text.cacheRead];
 			if (text.cacheWrite !== "0") parts.push("缓存写 " + text.cacheWrite);
 			parts.push("输出 " + text.output);
-			return React.createElement("div", { className: "dsh-usage-sub" }, parts.join(" · "));
+			return React.createElement("div", { className: "dsh-usage-sub", title: parts.join(" · ") }, parts.join(" · "));
 		}
 
-		/** Token-total cell: the headline number plus its breakdown line. */
-		function totalCell(row) {
-			return React.createElement("td", { className: "dsh-usage-num" },
+		/** Token total and its compact accounting breakdown. */
+		function tokenBlock(row) {
+			return React.createElement("div", { className: "dsh-usage-row-token" },
 				React.createElement("div", null, row.text.total),
 				breakdown(row.text),
 			);
 		}
 
-		/** Summary strip: all corpus counters in one quiet, divided surface. */
-		function TotalsCard(props) {
-			const totals = props.totals;
-			return React.createElement("div", { className: "dsh-usage-card" },
-				metric("累计 Token", totals.text.total, true),
-				metric("输入", totals.text.input),
-				metric("输出", totals.text.output),
-				metric("推理", totals.text.reasoning),
-				metric("缓存读 / 写", totals.text.cacheRead + " / " + totals.text.cacheWrite),
-				metric("请求数", totals.text.requests),
-				metric("会话数", totals.text.sessions),
+		/** One model row shared by provider-first and model-first views. */
+		function modelRow(model, providers) {
+			return React.createElement("div", { className: "dsh-usage-row", key: model.model },
+				React.createElement("div", { className: "dsh-usage-row-main" },
+					React.createElement("span", { className: "dsh-usage-model", title: model.model }, model.model),
+					providers === undefined ? null : React.createElement("div", { className: "dsh-usage-chips" },
+						providers.map((provider) => React.createElement("span", { className: "dsh-usage-chip", key: provider, title: provider }, provider)),
+					),
+				),
+				React.createElement("div", { className: "dsh-usage-row-requests" }, model.text.requests,
+					React.createElement("span", { className: "dsh-usage-mini-label" }, providers === undefined ? "请求" : "请求 · " + model.text.sessions + " 会话"),
+				),
+				tokenBlock(model),
+				React.createElement("div", { className: "dsh-usage-row-share" }, shareBar(model.share)),
 			);
 		}
 
-		/** Provider-first view: one card per provider, one row per model. */
+		/** Overview: one dominant total, compact counters, and the true token mix. */
+		function TotalsCard(props) {
+			const totals = props.totals;
+			const composition = totals.composition ?? [];
+			const opacities = [1, 0.78, 0.56, 0.34];
+			return React.createElement("div", { className: "dsh-usage-overview" },
+				React.createElement("div", { className: "dsh-usage-overview-main" },
+					React.createElement("div", { className: "dsh-usage-hero" },
+						React.createElement("div", { className: "dsh-usage-eyebrow" }, "累计 Token"),
+						React.createElement("div", { className: "dsh-usage-hero-value" }, totals.text.total),
+						React.createElement("div", { className: "dsh-usage-hero-meta" }, totals.text.requests + " 次请求 · " + totals.text.sessions + " 个会话"),
+					),
+					React.createElement("div", { className: "dsh-usage-metrics" },
+						metric("输入", totals.text.input),
+						metric("缓存读取", totals.text.cacheRead),
+						metric("缓存写入", totals.text.cacheWrite),
+						metric("输出", totals.text.output),
+						metric("推理", totals.text.reasoning),
+					),
+				),
+				composition.length === 0 ? null : React.createElement("div", { className: "dsh-usage-composition" },
+					React.createElement("div", { className: "dsh-usage-composition-bar", "aria-label": "Token 构成" },
+						composition.map((part, index) => React.createElement("span", {
+							className: "dsh-usage-composition-piece",
+							key: part.id,
+							style: { width: part.share + "%", opacity: opacities[index] },
+						})),
+					),
+					React.createElement("div", { className: "dsh-usage-composition-legend" },
+						composition.map((part, index) => React.createElement("div", { className: "dsh-usage-legend-item", key: part.id },
+							React.createElement("span", { className: "dsh-usage-legend-dot", style: { opacity: opacities[index] } }),
+							React.createElement("span", null, part.label),
+							React.createElement("span", { className: "dsh-usage-legend-value" }, part.text),
+						)),
+					),
+				),
+			);
+		}
+
+		/** Provider-first ranking, with one compact row per model. */
 		function ProvidersView(props) {
 			return React.createElement("div", { className: "dsh-usage-list" },
-				props.data.providers.map((provider) => React.createElement("div", { className: "dsh-usage-provcard", key: provider.provider },
-					React.createElement("div", { className: "dsh-usage-provhead" },
-						React.createElement("div", { className: "dsh-usage-provname" }, provider.provider),
-						React.createElement("div", { className: "dsh-usage-provmeta" }, "模型 " + provider.models.length + " · 会话 " + provider.text.sessions + " · 请求 " + provider.text.requests),
-						React.createElement("div", { className: "dsh-usage-provtotal" }, provider.text.total),
-					),
-					React.createElement("table", { className: "dsh-usage-table" },
-						React.createElement("thead", null,
-							React.createElement("tr", null,
-								React.createElement("th", null, "模型"),
-								React.createElement("th", null, "请求"),
-								React.createElement("th", null, "Token"),
-								React.createElement("th", null, "占比"),
-							),
+				props.data.providers.map((provider, index) => React.createElement("div", { className: "dsh-usage-panel", key: provider.provider },
+					React.createElement("div", { className: "dsh-usage-provider-head" },
+						React.createElement("div", { className: "dsh-usage-rank" }, String(index + 1).padStart(2, "0")),
+						React.createElement("div", { style: { minWidth: 0 } },
+							React.createElement("div", { className: "dsh-usage-provider-name", title: provider.provider }, provider.provider),
+							React.createElement("div", { className: "dsh-usage-provider-meta" }, provider.models.length + " 个模型 · " + provider.text.sessions + " 个会话 · " + provider.text.requests + " 次请求"),
 						),
-						React.createElement("tbody", null,
-							provider.models.map((model) => React.createElement("tr", { key: model.model },
-								React.createElement("td", null, React.createElement("span", { className: "dsh-usage-model" }, model.model)),
-								React.createElement("td", { className: "dsh-usage-num" }, model.text.requests),
-								totalCell(model),
-								React.createElement("td", null, shareBar(model.share)),
-							)),
+						React.createElement("div", { className: "dsh-usage-provider-total" },
+							React.createElement("div", { className: "dsh-usage-provider-value" }, provider.text.total),
+							React.createElement("div", { className: "dsh-usage-provider-share" }, provider.share + "%"),
 						),
 					),
+					provider.models.map((model) => modelRow(model)),
 				)),
 			);
 		}
 
-		/** Model-first view: identical model ids merged across providers, listed. */
+		/** Model-first ranking, merging identical model ids across providers. */
 		function ModelsView(props) {
-			return React.createElement("div", { className: "dsh-usage-provcard" },
-				React.createElement("table", { className: "dsh-usage-table" },
-					React.createElement("thead", null,
-						React.createElement("tr", null,
-							React.createElement("th", null, "模型"),
-							React.createElement("th", null, "请求"),
-							React.createElement("th", null, "Token"),
-							React.createElement("th", null, "占比"),
-						),
-					),
-					React.createElement("tbody", null,
-						props.data.models.map((model) => React.createElement("tr", { key: model.model },
-							React.createElement("td", { style: { minWidth: "140px" } },
-								React.createElement("div", { className: "dsh-usage-model" }, model.model),
-								React.createElement("div", { className: "dsh-usage-chips" },
-									model.providers.map((provider) => React.createElement("span", { className: "dsh-usage-chip", key: provider }, provider)),
-								),
-							),
-							React.createElement("td", { className: "dsh-usage-num" },
-								React.createElement("div", null, model.text.requests),
-								React.createElement("div", { className: "dsh-usage-sub" }, "会话 " + model.text.sessions),
-							),
-							totalCell(model),
-							React.createElement("td", null, shareBar(model.share)),
-						)),
-					),
-				),
+			return React.createElement("div", { className: "dsh-usage-panel" },
+				props.data.models.map((model) => modelRow(model, model.providers)),
 			);
 		}
 
-		/** Per-session index, sorted by token total. */
+		/** Per-session index with metadata separated from accounting totals. */
 		function SessionsView(props) {
-			return React.createElement("div", { className: "dsh-usage-provcard" },
-				React.createElement("table", { className: "dsh-usage-table" },
-					React.createElement("thead", null,
-						React.createElement("tr", null,
-							React.createElement("th", null, "会话"),
-							React.createElement("th", null, "创建时间"),
-							React.createElement("th", null, "请求"),
-							React.createElement("th", null, "Token"),
+			return React.createElement("div", { className: "dsh-usage-panel" },
+				props.data.sessionsList.map((session) => React.createElement("div", { className: "dsh-usage-session-row", key: session.id },
+					React.createElement("div", { style: { minWidth: 0 } },
+						React.createElement("span", { className: "dsh-usage-model", title: session.id }, session.shortId),
+						React.createElement("div", { className: "dsh-usage-chips" },
+							React.createElement("span", { className: "dsh-usage-chip" }, session.subagent ? "子 Agent" : "主会话"),
+							session.agentPreset === "" ? null : React.createElement("span", { className: "dsh-usage-chip", key: "preset", title: session.agentPreset }, session.agentPreset),
+							session.workspace === "" ? null : React.createElement("span", { className: "dsh-usage-chip", key: "workspace", title: session.workspace }, session.workspace),
 						),
 					),
-					React.createElement("tbody", null,
-						props.data.sessionsList.map((session) => React.createElement("tr", { key: session.id },
-							React.createElement("td", null,
-								React.createElement("div", { className: "dsh-usage-model" }, session.shortId),
-								React.createElement("div", { className: "dsh-usage-chips" },
-									React.createElement("span", { className: "dsh-usage-chip" }, session.subagent ? "子 Agent" : "主会话"),
-									session.agentPreset === "" ? null : React.createElement("span", { className: "dsh-usage-chip", key: "preset" }, session.agentPreset),
-									session.workspace === "" ? null : React.createElement("span", { className: "dsh-usage-chip", key: "workspace" }, session.workspace),
-								),
-							),
-							React.createElement("td", { className: "dsh-usage-num dsh-usage-sub", style: { paddingTop: "10px" } }, session.createdAtText),
-							React.createElement("td", { className: "dsh-usage-num" }, session.requestsText),
-							React.createElement("td", { className: "dsh-usage-num" }, session.totalText),
-						)),
+					React.createElement("div", { className: "dsh-usage-session-side" },
+						React.createElement("div", { className: "dsh-usage-sub" }, session.createdAtText),
+						React.createElement("div", { className: "dsh-usage-session-total" }, session.totalText + " Token"),
+						React.createElement("div", { className: "dsh-usage-mini-label" }, session.requestsText + " 次请求"),
 					),
-				),
+				)),
 			);
 		}
 
