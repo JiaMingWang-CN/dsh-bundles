@@ -8,7 +8,7 @@ window.__ModuleLoader__.load({
 		const React = react;
 		//#region lib/client.js
 		/** Data-first dashboard styled exclusively with the shell's theme tokens. */
-		const CSS = '.dsh-usage-page{box-sizing:border-box;width:100%;display:flex;flex-direction:column;gap:24px;color:var(--dsw-alias-label-primary)}' +
+		const CSS = '.dsh-usage-page{--dsh-usage-input:#3b82f6;--dsh-usage-cache-read:#8b5cf6;--dsh-usage-cache-write:#f59e0b;--dsh-usage-output:#10b981;box-sizing:border-box;width:100%;display:flex;flex-direction:column;gap:24px;color:var(--dsw-alias-label-primary)}' +
 			'.dsh-usage-btn{align-self:flex-start;box-sizing:border-box;padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;background:transparent;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}' +
 			'.dsh-usage-btn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}' +
 			'.dsh-usage-overview{padding:26px 28px 22px;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent}' +
@@ -22,11 +22,11 @@ window.__ModuleLoader__.load({
 			'.dsh-usage-metric-value{overflow:hidden;text-overflow:ellipsis;font-size:15px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;white-space:nowrap}' +
 			'.dsh-usage-composition{margin-top:23px;padding-top:18px;border-top:1px solid var(--dsw-alias-border-l1)}' +
 			'.dsh-usage-composition-bar{display:flex;width:100%;height:7px;overflow:hidden;border-radius:4px;background:var(--dsw-alias-bg-layer-2)}' +
-			'.dsh-usage-composition-piece{height:100%;background:var(--dsw-alias-brand-primary)}' +
+			'.dsh-usage-composition-piece{height:100%}' +
 			'.dsh-usage-composition-legend{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:11px}' +
-			'.dsh-usage-legend-item{min-width:0;display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--dsw-alias-label-tertiary)}' +
-			'.dsh-usage-legend-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--dsw-alias-brand-primary)}' +
-			'.dsh-usage-legend-value{margin-left:auto;color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}' +
+			'.dsh-usage-legend-item{min-width:0;display:flex;align-items:center;gap:7px;font-size:10.5px;color:var(--dsw-alias-label-secondary)}' +
+			'.dsh-usage-legend-dot{width:7px;height:7px;flex:none;border-radius:50%}' +
+			'.dsh-usage-legend-value{margin-left:auto;color:var(--dsw-alias-label-primary);font-weight:550;font-variant-numeric:tabular-nums;white-space:nowrap}' +
 			'.dsh-usage-sectionbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:2px}' +
 			'.dsh-usage-sectiontitle{margin:0;font-size:16px;font-weight:650;letter-spacing:-.1px}' +
 			'.dsh-usage-seg{display:inline-flex;align-items:center;gap:24px}' +
@@ -139,7 +139,12 @@ window.__ModuleLoader__.load({
 		function TotalsCard(props) {
 			const totals = props.totals;
 			const composition = totals.composition ?? [];
-			const opacities = [1, 0.78, 0.56, 0.34];
+			const colors = {
+				input: "var(--dsh-usage-input)",
+				cacheRead: "var(--dsh-usage-cache-read)",
+				cacheWrite: "var(--dsh-usage-cache-write)",
+				output: "var(--dsh-usage-output)",
+			};
 			return React.createElement("div", { className: "dsh-usage-overview" },
 				React.createElement("div", { className: "dsh-usage-overview-main" },
 					React.createElement("div", { className: "dsh-usage-hero" },
@@ -157,15 +162,15 @@ window.__ModuleLoader__.load({
 				),
 				composition.length === 0 ? null : React.createElement("div", { className: "dsh-usage-composition" },
 					React.createElement("div", { className: "dsh-usage-composition-bar", "aria-label": "Token 构成" },
-						composition.map((part, index) => React.createElement("span", {
+						composition.map((part) => React.createElement("span", {
 							className: "dsh-usage-composition-piece",
 							key: part.id,
-							style: { width: part.share + "%", opacity: opacities[index] },
+							style: { width: part.share + "%", background: colors[part.id] },
 						})),
 					),
 					React.createElement("div", { className: "dsh-usage-composition-legend" },
-						composition.map((part, index) => React.createElement("div", { className: "dsh-usage-legend-item", key: part.id },
-							React.createElement("span", { className: "dsh-usage-legend-dot", style: { opacity: opacities[index] } }),
+						composition.map((part) => React.createElement("div", { className: "dsh-usage-legend-item", key: part.id },
+							React.createElement("span", { className: "dsh-usage-legend-dot", style: { background: colors[part.id] } }),
 							React.createElement("span", null, part.label),
 							React.createElement("span", { className: "dsh-usage-legend-value" }, part.text),
 						)),

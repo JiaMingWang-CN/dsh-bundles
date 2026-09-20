@@ -1,67 +1,180 @@
 # dsh-bundles
 
-[English](README.en.md) | **中文**
+**中文** · [English](README.en.md)
 
-dsh-bundles 是一组写给 DeepSeek Harness（dsh）的 `dsh.bundle` 插件包。每个子目录是一个独立可安装的 bundle，通过官方插件通道一键装进 web profile——一个在会话完成时提醒你，一个把本机 token 用量摊开给你看，还有一个给你的 agent 装上代码索引和实时文档。
+一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、跨会话 Token 用量面板，以及 CodeGraph + Context7 MCP 工具集。
 
-## Table of Contents
+每个目录都是一个可单独安装的 bundle。只安装需要的部分即可。
 
-- [How it works](#how-it-works)
-- [Installation](#installation)
-  - [Prerequisites](#prerequisites)
-  - [From GitHub](#from-github)
-  - [Local development](#local-development)
-- [The Bundles](#the-bundles)
-  - [ui-task-notify](#ui-task-notify)
-  - [ui-usage-stats](#ui-usage-stats)
-  - [mcp-toolkit](#mcp-toolkit)
-- [When Something Goes Wrong](#when-something-goes-wrong)
-- [Updating](#updating)
-- [Philosophy](#philosophy)
-- [Development notes](#development-notes)
+## 目录
 
-## How it works
+- [包含内容](#包含内容)
+- [快速安装](#快速安装)
+- [MCP 工具安装](#mcp-工具安装)
+  - [CodeGraph](#codegraph)
+  - [Context7](#context7)
+- [使用方式](#使用方式)
+- [更新与卸载](#更新与卸载)
+- [常见问题](#常见问题)
+- [本地开发](#本地开发)
 
-装好之后，这些 bundle 就在那里，不需要你做任何特别的事。
+## 包含内容
 
-任务通知插件盯着主会话：任务跑完时，如果你正盯着界面，它什么都不做；如果你已经切走或最小化，它发一条系统通知。子 Agent 完成任务不通知——那个噪音比信号多。提示音由 Web Audio 现场合成，响度跟随系统音量，开关和提示音选择都持久化在 DSH 配置里。
+### 任务通知
 
-用量统计插件在后台折叠本机全部会话日志，按「提供商 → 模型」「按模型」「按会话」三种视图把 token 用量摆出来。它只读日志、不算钱、不调模型。重新打开面板时先立刻画出上一次的结果，再后台更新，所以不会出现空白等待。
+`dsh-client-ui-task-notify` 在主会话完成任务且页面不在前台时发送系统通知。
 
-MCP 工具集注册两个 stdio server：**codegraph** 回答「这个符号在哪、它怎么被调用」这类问题（需要项目有 `.codegraph/` 索引），**context7** 把第三方库的当前文档喂给 agent，而不是让它靠过时的记忆瞎编。两个 server 的命令都走 `npx -y`，不污染全局环境。
+- 子 Agent 完成时不通知；
+- 提供系统默认、叮、叮咚、上升和静音五种提示音；
+- 开关与提示音写入 DSH 的持久化设置；
+- 自定义提示音由 Web Audio 生成，音量跟随系统。
 
-三条 `dsh plugin add` 命令装完，profile 的 `patchReload: live` 会让正在运行的 dsh 直接热加载新 bundle——不用重启，刷新页面就行。
+### 用量统计
 
-## Installation
+`dsh-client-ui-usage-stats` 读取本机 DSH 会话日志，生成跨会话 Token 用量面板。
 
-### Prerequisites
+- 按提供商、模型或会话查看；
+- 分开展示输入、缓存读取、缓存写入、输出与推理 Token；
+- 推理 Token 已包含在输出中，不会重复计入总量；
+- 包含主会话与子 Agent 会话；
+- 只读取日志，不调用模型，也不估算费用；
+- 按日志大小与修改时间缓存，重复打开无需重新解码全部历史记录。
 
-两个 UI bundle（task-notify、usage-stats）没有任何前置依赖，装完即用。
+### MCP 工具集
 
-MCP 工具集依赖以下两个工具，请先按各自仓库的教程安装，并确认命令可用（`codegraph --version`、`context7-mcp --help`）：
+`dsh-bundle-mcp-toolkit` 向 DSH 注册两个 stdio MCP server：
 
-- **CodeGraph**：https://github.com/colbymchenry/codegraph
-- **Context7**：https://github.com/upstash/context7
+- **CodeGraph**：通过本地代码索引定位符号、调用路径和架构关系；
+- **Context7**：向 Agent 提供当前版本的第三方库文档与示例。
 
-另外，codegraph 只能回答**已被索引的项目**——在被查询的项目里跑一次 `codegraph init` 生成 `.codegraph/` 索引。
+两个 server 都由 `npx -y` 启动，不要求全局安装 npm 包。
 
-### From GitHub
+## 快速安装
 
-已安装 dsh 后，执行三条命令即可（前两条已在全新 profile 端到端实测）：
+### 前置条件
+
+- 已安装 DeepSeek Harness（dsh）；
+- 使用 MCP 工具集时，需要 Node.js 20 或更高版本；
+- Windows、macOS 或 Linux 上可用的 `npx`。
+
+### 从 GitHub 安装
+
+分别执行需要的命令：
 
 ```powershell
+# 任务完成通知
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-task-notify"
+
+# Token 用量统计
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-usage-stats"
+
+# CodeGraph + Context7 MCP 工具集
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
 ```
 
-- git 安装时 pnpm 会自动装入包内依赖（`@deepseek-ai/schemastery` 等），无需手动 `pnpm install`；
-- 首次启动时 MCP server 通过 `npx -y` 拉取，会稍慢；
-- 安装后 `dsh --profile web --dump-config` 可确认 bundle 已进入层栈。
+确认 bundle 已进入 web profile：
 
-### Local development
+```powershell
+dsh --profile web --dump-config
+```
 
-克隆本仓库后用本地路径安装，改源码即时生效：
+首次启动 MCP 工具集时，`npx` 需要下载对应包，耗时会比后续启动更长。
+
+## MCP 工具安装
+
+MCP bundle 已经包含 DSH 所需的 server 配置；下面只需准备运行环境和项目索引。
+
+### CodeGraph
+
+- **项目地址**：https://github.com/colbymchenry/codegraph
+
+CodeGraph 在本地建立代码知识图谱。MCP server 可以服务多个项目，但每个项目都要单独创建 `.codegraph/` 索引。
+
+### Context7
+
+- **项目地址**：https://github.com/upstash/context7
+
+Context7 默认可以直接启动；如果服务端提示限流或要求认证，可运行 `npx ctx7 setup` 完成官方引导配置。
+
+## 使用方式
+
+### 开启任务通知
+
+1. 打开 DSH 的“设置”；
+2. 进入“任务通知”；
+3. 开启通知并选择提示音；
+4. 浏览器首次请求系统通知权限时选择允许。
+
+只有主会话从运行中变为完成、且当前页面未聚焦时才会通知。
+
+### 查看 Token 用量
+
+1. 打开 DSH 的“设置”；
+2. 进入“用量统计”；
+3. 在“提供商 / 模型 / 会话”之间切换。
+
+Host 端修改需要重启 DSH；只修改客户端界面时刷新页面即可。
+
+### 使用 MCP 工具
+
+- CodeGraph 查询要求目标项目已有 `.codegraph/`；
+- Context7 不要求项目初始化；
+- DSH 首次拉起 server 较慢属于正常现象；
+- 可以使用 `dsh --profile web --dump-config` 检查 MCP client 是否进入配置层栈。
+
+## 更新与卸载
+
+更新全部已安装插件：
+
+```powershell
+dsh plugin --profile web update
+```
+
+更新单个插件：
+
+```powershell
+dsh plugin --profile web update dsh-client-ui-usage-stats
+```
+
+卸载本仓库的三个 bundle：
+
+```powershell
+dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit
+```
+
+更新或卸载后建议重启 DSH。
+
+## 常见问题
+
+### CodeGraph 提示找不到索引
+
+在被查询项目的根目录执行：
+
+```powershell
+codegraph init -i
+```
+
+### MCP server 第一次启动很慢
+
+Bundle 使用 `npx -y`。第一次运行需要下载包，后续会使用本机缓存。
+
+### 修改用量统计后页面没有变化
+
+- 修改 `lib/client.js`：刷新浏览器；
+- 修改 `lib/index.js`：重启 DSH 后再刷新。
+
+### 本地安装任务通知后缺少依赖
+
+本地目录安装使用 `link:` 时，不会自动安装包内依赖。执行：
+
+```powershell
+cd dsh-client-ui-task-notify
+pnpm install
+```
+
+## 本地开发
+
+克隆仓库后，通过本地路径安装：
 
 ```powershell
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
@@ -69,51 +182,18 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-usage-stats
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 ```
 
-## The Bundles
+运行用量统计测试：
 
-### ui-task-notify
+```powershell
+cd dsh-client-ui-usage-stats
+npm test
+```
 
-会话完成系统通知。主会话完成任务、且界面未选中或已离开时发系统通知；子 Agent 不通知。设置页挂在「Agent 预设」下方（`settings.section` slot，order 25），提供总开关与提示音选择（系统默认 / 叮 / 叮咚 / 上升 / 静音），状态持久化到 `settings.yaml` 的 `ui-task-notify` 段。提示音由 Web Audio 合成，固定增益，响度跟随系统音量。
+目录结构：
 
-### ui-usage-stats
-
-用量统计。设置页挂在「任务通知」下方（`settings.section` slot，order 30），折叠本机全部会话日志（含子 Agent），按「提供商 → 模型」「按模型」「按会话」三种视图展示 token 用量（输入 / 缓存读 / 缓存写 / 输出，推理单列但不重复计入）。同名模型由多个提供商提供时分别统计，「按模型」视图合并并列出全部提供商。数据只读、不折算费用、不做模型调用。
-
-### mcp-toolkit
-
-两个 stdio MCP server 的配置，命令走 `npx -y`，无需全局安装：
-
-- **codegraph**（`mcp__codegraph__codegraph_explore`）：回答符号定位、调用路径、架构这类问题，支持任意**已索引**项目，靠每次调用的 `projectPath` 参数定位索引。
-- **context7**（`mcp__context7__resolve-library-id` / `mcp__context7__query-docs`）：给 agent 喂第三方库的当前文档，而不是过时的训练记忆。
-
-## When Something Goes Wrong
-
-- **改了 host half（`lib/index.js`）后页面没变化**：正常。`patchReload: live` 只热重建客户端 bundle；host half 是启动时加载的，**要重启 dsh 才生效**。只改 `lib/client.js` 则刷新页面即可。
-- **`link:` 安装后 task-notify 报缺依赖**：`dsh plugin add` 对本地目录默认走 `link:`，pnpm 不会代装依赖。第一次拿到仓库后，在 `dsh-client-ui-task-notify` 目录里跑一次 `pnpm install`（它依赖 `@deepseek-ai/schemastery`）。`dsh-client-ui-usage-stats` 没有依赖，不需要这一步。
-- **codegraph 查询报找不到索引**：被查询的项目里没有 `.codegraph/`。跑一次 `codegraph init`。
-- **首次启动 MCP server 很慢**：`npx -y` 在拉包，第二次就好了。
-
-## Updating
-
-- 更新全部：`dsh plugin --profile web update`；更新单个：`dsh plugin --profile web update dsh-client-ui-usage-stats`。更新后重启 dsh 生效。
-- 卸载：`dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit`。
-
-## Philosophy
-
-- **只做一件事**：每个 bundle 一个明确的职责，彼此不依赖，按需安装。
-- **数据只读**：统计插件只解码日志、只展示，不改会话、不调模型、不折算费用。
-- **快是功能**：统计不回放校验、直接解码日志、按 `路径 + size + mtime` 缓存——首次折叠 ≈ 0.9 s，重复打开 ≈ 5 ms，而不是 14 s。
-- **沿用既有机制**：设置页走 `settings.section` slot，跨 half 通信走 `ctx.webServer` 的包内路由——和官方包（`dsh-client-hmr`、`dsh-host-open-in-app`）一个做法，不发明新通道。
-
-## Development notes
-
-- **热更新边界**：`dsh plugin add` 对本地目录默认走 `link:`，改动 `lib/` 源码后刷新页面即生效，无需重装。但 host half（`lib/index.js`）是启动时加载的，改完**要重启 dsh**；只改 `lib/client.js` 则刷新页面即可。
-- **task-notify 的依赖**：host half（`lib/index.js`）注册 `ui-task-notify` 设置 namespace，依赖 `@deepseek-ai/schemastery`。`link:` 安装时 pnpm 不代装依赖，需在包目录内手动 `pnpm install` 一次。客户端 half（`lib/client.js`）通过 `ctx.settingsScope` 读写持久化状态，通过 `settings.section` slot（order 25）挂载设置页。
-- **usage-stats 无依赖**：host half 只用 `ctx.webServer`，`link:` 安装后无需 `pnpm install`。
-- **直接读会话日志**：host half 直接读 `$DSH_HOME/sessions/*/*/session.v3.jsonl.zstd` 并按「提供商 + 模型」折叠 token（沿用 `dsh-token-meter` 的 `tokenUsage` 语义：同一 `(turn, step)` 槽位替换而非累加，`llm/retry-started` 结束替换范围）。**不要改回 `ctx.sessionQuery`**：那个服务对每个会话做完整回放校验，实测 40 个会话 / 50 MB 一次要 14 秒；直接解码同样数据只要 0.9 秒，而且大小 / mtime 签名可以让后续打开完全跳过解码：
-  - 首次折叠 ≈ 0.9 s；重复打开 ≈ 5 ms；`?includeSubagents=false` 变体 ≈ 15 ms（不重新解码）；
-  - 每个会话按 `路径 + size + mtime` 缓存，只有日志真的追加过才重新解析；报告本身按 15 s 新鲜度复用，因此即使面板不提供「刷新」按钮，重新打开也会拿到最新统计。
-- **主 / 子会话靠目录名区分**：统计**默认包含子 Agent 会话**（面板不提供开关），因为日志头行在会话创建时就落盘，那时 harness 还不知道该会话会被委派，所以 **`origin` 字段在所有已落盘的日志里都不存在**（实测 40/40）。主会话是 `session-<uuid>`，子 Agent 是裸 uuid。
-- **不要用 `harness.handle`**：那是动态 Cordis 插件（`cordis_define`）专属的沙箱 RPC，而 bundle 包的 host half 是普通 cordis 插件，**没有 `harness` 全局**（用了会导致整个 profile 启动失败）。这里改为由 host half 在 `ctx.webServer` 上注册一条包内路径 `GET /plugins/ui-usage-stats/summary`（JSON、`no-store`），浏览器 half 用 `fetch` 读取——与 `dsh-client-hmr`、`dsh-host-open-in-app` 等官方包的做法一致。
-- **格式化放在 host half**：数字（千分位 / 万 / 亿）在 host half 用 `Intl` 格式化后下发，因为客户端执行环境不保证有 `Intl`。面板会把上一次结果留在内存里，重新打开时先立即画出旧数据再后台更新，所以不会出现空白等待。
-- **客户端 half 直接用 `ctx.slots`**：必须显式声明 `inject: ["slots"]` 并直接用 `ctx.slots`（`ctx.slots.inject` → `ctx.slots.register`），与官方 `settings.section` 注册方保持一致；不要改用 `ctx.get("slots")` 之后再通过被注入服务转发注册。
+```text
+dsh-bundles/
+├── dsh-client-ui-task-notify/
+├── dsh-client-ui-usage-stats/
+└── dsh-bundle-mcp-toolkit/
+```
