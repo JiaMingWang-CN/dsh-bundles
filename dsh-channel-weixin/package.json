@@ -1,0 +1,22 @@
+{
+  "name": "dsh-channel-weixin",
+  "version": "0.1.0",
+  "description": "WeChat channel for DSH: QR login, text tasks, and task control over WeChat, shown as an independent settings section",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./patch.yml"
+    }
+  },
+  "license": "MIT"
+}

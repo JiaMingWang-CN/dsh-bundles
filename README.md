@@ -49,6 +49,18 @@
 
 两个 server 都由 `npx -y` 启动，不要求全局安装 npm 包。
 
+### 微信连接
+
+`dsh-channel-weixin` 让用户通过微信文字消息操作 DSH：扫码连接后，微信里的文字作为任务
+发给绑定的 DSH 会话，结果按段落回复到微信。
+
+- 独立实现：不依赖、不启动 OpenClaw，未复制其源代码，零第三方运行依赖（只用 Node 内置模块）；
+- 设置中独立入口（`order: 35`，位于“用量统计”之后），显示连接状态、绑定会话与目录、队列与定时任务数量；
+- 命令（微信中发送 `/help` 查看）：`/new`、`/sessions`、`/use`、`/cwd`、`/stop`、`/queue`、
+  `/schedule`、`/agents`、`/agent`、`/models`、`/model`、`/usage`、`/search`；
+- 边界：单账号、仅扫码绑定的本人私聊；仅文字；微信任务按完全权限执行；
+  停机期间错过的定时触发只标记不补跑；主动推送受微信服务端限制，须以真实联调结论为准。
+
 ## 快速安装
 
 ### 前置条件
@@ -70,6 +82,9 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-clie
 
 # CodeGraph + Context7 MCP 工具集
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
+
+# 微信连接
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-channel-weixin"
 ```
 
 确认 bundle 已进入 web profile：
@@ -136,11 +151,14 @@ dsh plugin --profile web update
 dsh plugin --profile web update dsh-client-ui-usage-stats
 ```
 
-卸载本仓库的三个 bundle：
+卸载本仓库的四个 bundle：
 
 ```powershell
-dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit
+dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-channel-weixin
 ```
+
+卸载微信连接**不会删除已保存的凭证与绑定状态**（`$DSH_HOME/storages/channel-weixin/`）。
+如需彻底清除，请先在设置页“退出登录”，或手动删除该目录。
 
 更新或卸载后建议重启 DSH。
 
@@ -180,12 +198,16 @@ pnpm install
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-usage-stats
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-channel-weixin
 ```
 
-运行用量统计测试：
+运行测试（用量统计与微信连接都带 `node --test` 测试）：
 
 ```powershell
 cd dsh-client-ui-usage-stats
+npm test
+
+cd ..\dsh-channel-weixin
 npm test
 ```
 
@@ -195,5 +217,8 @@ npm test
 dsh-bundles/
 ├── dsh-client-ui-task-notify/
 ├── dsh-client-ui-usage-stats/
-└── dsh-bundle-mcp-toolkit/
+├── dsh-bundle-mcp-toolkit/
+├── dsh-channel-weixin/
+├── docs/                    # 插件计划与阶段核对报告
+└── preferences/             # 只读参考项目
 ```

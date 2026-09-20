@@ -1,0 +1,4 @@
+# WeChat channel (host connection plane + client settings section).
+- insert:
+    - id: channel-weixin
+      name: "dsh-channel-weixin"
