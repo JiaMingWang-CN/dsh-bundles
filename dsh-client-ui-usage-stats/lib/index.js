@@ -25,8 +25,13 @@ import { zstdDecompressSync } from 'node:zlib';
 /** Route the browser half reads; a package-owned path, so no shell route is shadowed. */
 const SUMMARY_PATH = '/plugins/ui-usage-stats/summary';
 
+/** Resolve the harness session store, honoring an explicit `DSH_HOME`. */
+function sessionsRoot(env = process.env, home = homedir()) {
+	return join(env.DSH_HOME || join(home, '.dsh'), 'sessions');
+}
+
 /** Where the harness keeps persisted session logs (`$DSH_HOME/sessions`). */
-const SESSIONS_ROOT = join(homedir(), '.dsh', 'sessions');
+const SESSIONS_ROOT = sessionsRoot();
 
 /** Zstandard frame magic: session logs are an append-only sequence of frames. */
 const ZSTD_MAGIC = Buffer.from([0x28, 0xb5, 0x2f, 0xfd]);
@@ -88,7 +93,7 @@ function shareOf(value, grand) {
 	return grand <= 0 ? 0 : Math.round((value / grand) * 1000) / 10;
 }
 
-/** Every file under `root`, depth-first. */
+/** Every persisted session log under `root`, depth-first. */
 function walkFiles(root) {
 	const found = [];
 	let entries;
@@ -100,7 +105,7 @@ function walkFiles(root) {
 	for (const entry of entries) {
 		const full = join(root, entry.name);
 		if (entry.isDirectory()) found.push(...walkFiles(full));
-		else if (entry.isFile()) found.push(full);
+		else if (entry.isFile() && entry.name === 'session.v3.jsonl.zstd') found.push(full);
 	}
 	return found;
 }
@@ -169,6 +174,20 @@ function parseSessionLog(path) {
  * @param events - the session's events, in log order.
  * @returns entries of `[routeKey, group]`, routeKey being `provider\u0000model`.
  */
+/** Remove a slot's previous settlement before recording its replacement. */
+function withdrawSlot(groups, slot) {
+	if (slot === undefined || !slot.counted) return;
+	const group = groups.get(slot.key);
+	if (group === undefined) return;
+	group.input -= slot.buckets.input;
+	group.cacheRead -= slot.buckets.cacheRead;
+	group.cacheWrite -= slot.buckets.cacheWrite;
+	group.output -= slot.buckets.output;
+	group.reasoning -= slot.buckets.reasoning;
+	group.requests -= 1;
+	if (group.requests === 0 && totalOf(group) === 0 && group.reasoning === 0) groups.delete(slot.key);
+}
+
 function foldSession(events) {
 	const groups = new Map();
 	let route;
@@ -186,6 +205,7 @@ function foldSession(events) {
 			const turn = event.data?.turn;
 			const step = event.data?.step;
 			if (slot !== undefined && slot.turn === turn && slot.step === step) {
+				/* The failed attempt consumed tokens, but the retry is still one logical request. */
 				if (slot.counted) {
 					const group = groups.get(slot.key);
 					if (group !== undefined) group.requests -= 1;
@@ -213,10 +233,7 @@ function foldSession(events) {
 		}
 		const key = provider + '\u0000' + model;
 		/* Withdraw this slot's previous settlement before recording the new one. */
-		if (slot !== undefined && slot.turn === turn && slot.step === step && slot.counted) {
-			const previous = groups.get(slot.key);
-			if (previous !== undefined) previous.requests -= 1;
-		}
+		if (slot !== undefined && slot.turn === turn && slot.step === step) withdrawSlot(groups, slot);
 		if (usage === undefined) {
 			slot = { turn, step, key, counted: false };
 			continue;
@@ -233,7 +250,7 @@ function foldSession(events) {
 		group.output += buckets.output;
 		group.reasoning += buckets.reasoning;
 		group.requests += 1;
-		slot = { turn, step, key, counted: true };
+		slot = { turn, step, key, counted: true, buckets };
 	}
 	return [...groups];
 }
@@ -581,4 +598,6 @@ function storeSignature() {
 	return parts.join('|');
 }
 
-export { apply, inject, name };
+const testing = { foldSession, sessionsRoot, walkFiles };
+
+export { apply, inject, name, testing };

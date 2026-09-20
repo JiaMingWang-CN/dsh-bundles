@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Cross-session provider/model token usage statistics shown as a DSH settings section",
   "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js"

@@ -7,42 +7,48 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		const React = react;
 		//#region lib/client.js
-		/** Panel stylesheet, themed entirely through the shell's alias tokens. */
-		const CSS = '.dsh-usage-page{max-width:720px;display:flex;flex-direction:column;gap:12px;color:var(--dsw-alias-label-primary)}' +
-			'.dsh-usage-head{display:flex;align-items:center;justify-content:space-between;gap:16px}' +
-			'.dsh-usage-title{font-size:15px;font-weight:600}' +
-			'.dsh-usage-btn{box-sizing:border-box;padding:4px 10px;border-radius:10px;font-size:12px;cursor:pointer;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);transition:background .15s,border-color .15s,color .15s}' +
+		/** Quiet, data-first panel styled only with the shell's theme tokens. */
+		const CSS = '.dsh-usage-page{box-sizing:border-box;width:100%;max-width:980px;display:flex;flex-direction:column;gap:22px;color:var(--dsw-alias-label-primary)}' +
+			'.dsh-usage-btn{box-sizing:border-box;padding:6px 13px;border-radius:8px;font-size:12px;cursor:pointer;background:transparent;border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);transition:background .15s,color .15s}' +
 			'.dsh-usage-btn:hover:not(:disabled){color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}' +
-			'.dsh-usage-card{border:.5px solid var(--dsw-alias-border-l2);border-radius:12px;padding:12px 14px}' +
-			'.dsh-usage-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px 16px;margin-top:10px}' +
-			'.dsh-usage-metric{display:flex;flex-direction:column;gap:2px}' +
-			'.dsh-usage-metric-label{font-size:11px;color:var(--dsw-alias-label-tertiary)}' +
-			'.dsh-usage-metric-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}' +
-			'.dsh-usage-hero{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.2}' +
-			'.dsh-usage-seg{display:inline-flex;gap:6px}' +
-			'.dsh-usage-segbtn{padding:4px 12px;border-radius:14px;font-size:12px;cursor:pointer;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary);transition:background .15s,border-color .15s,color .15s}' +
-			'.dsh-usage-segbtn.on{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-overlay,#fff)}' +
-			'.dsh-usage-provcard{border:.5px solid var(--dsw-alias-border-l2);border-radius:12px;overflow:hidden}' +
-			'.dsh-usage-provhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--dsw-alias-bg-layer-2)}' +
-			'.dsh-usage-provname{font-size:13px;font-weight:600}' +
+			'.dsh-usage-card{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));padding:18px 0;border:1px solid var(--dsw-alias-border-l2);border-radius:18px;background:transparent}' +
+			'.dsh-usage-metric{min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:2px 12px;text-align:center;border-left:1px solid var(--dsw-alias-border-l1)}' +
+			'.dsh-usage-metric:first-child{border-left:none}' +
+			'.dsh-usage-metric-label{font-size:11.5px;font-weight:500;color:var(--dsw-alias-label-tertiary);white-space:nowrap}' +
+			'.dsh-usage-metric-value{max-width:100%;overflow:hidden;text-overflow:ellipsis;font-size:17px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums;white-space:nowrap}' +
+			'.dsh-usage-metric.featured .dsh-usage-metric-value{font-size:21px}' +
+			'.dsh-usage-sectionbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:6px}' +
+			'.dsh-usage-sectiontitle{margin:0;font-size:15px;font-weight:600}' +
+			'.dsh-usage-seg{display:inline-flex;align-items:center;gap:20px}' +
+			'.dsh-usage-segbtn{position:relative;padding:5px 0;border:0;font:inherit;font-size:12.5px;cursor:pointer;background:transparent;color:var(--dsw-alias-label-tertiary);transition:color .15s}' +
+			'.dsh-usage-segbtn:hover,.dsh-usage-segbtn.on{color:var(--dsw-alias-label-primary)}' +
+			'.dsh-usage-segbtn.on{font-weight:600}' +
+			'.dsh-usage-list{display:flex;flex-direction:column;gap:14px}' +
+			'.dsh-usage-provcard{border:1px solid var(--dsw-alias-border-l2);border-radius:14px;overflow:auto;background:transparent}' +
+			'.dsh-usage-provhead{min-width:570px;display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--dsw-alias-border-l2)}' +
+			'.dsh-usage-provname{font-size:13.5px;font-weight:600}' +
 			'.dsh-usage-provmeta{font-size:11.5px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}' +
-			'.dsh-usage-provtotal{margin-left:auto;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums}' +
-			'.dsh-usage-table{width:100%;border-collapse:collapse;font-size:12.5px}' +
-			'.dsh-usage-table th{text-align:left;font-weight:500;font-size:11px;color:var(--dsw-alias-label-tertiary);padding:7px 14px 5px;border-bottom:.5px solid var(--dsw-alias-border-l2)}' +
-			'.dsh-usage-table td{padding:7px 14px;border-bottom:.5px solid var(--dsw-alias-border-l1);vertical-align:top}' +
+			'.dsh-usage-provtotal{margin-left:auto;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}' +
+			'.dsh-usage-table{width:100%;min-width:570px;border-collapse:collapse;font-size:12.5px}' +
+			'.dsh-usage-table th{text-align:left;font-weight:500;font-size:11px;color:var(--dsw-alias-label-tertiary);padding:10px 18px 8px;border-bottom:1px solid var(--dsw-alias-border-l1)}' +
+			'.dsh-usage-table td{padding:11px 18px;border-bottom:1px solid var(--dsw-alias-border-l1);vertical-align:middle}' +
+			'.dsh-usage-table tbody tr{transition:background .12s}' +
+			'.dsh-usage-table tbody tr:hover{background:var(--dsw-alias-interactive-bg-hover)}' +
 			'.dsh-usage-table tr:last-child td{border-bottom:none}' +
 			'.dsh-usage-num{font-variant-numeric:tabular-nums}' +
-			'.dsh-usage-sub{font-size:11px;color:var(--dsw-alias-label-tertiary);margin-top:2px}' +
+			'.dsh-usage-sub{font-size:10.5px;line-height:1.45;color:var(--dsw-alias-label-tertiary);margin-top:3px;white-space:nowrap}' +
 			'.dsh-usage-model{font-family:var(--dsw-font-mono,ui-monospace,SFMono-Regular,Menlo,monospace);font-size:12px}' +
-			'.dsh-usage-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}' +
-			'.dsh-usage-chip{font-size:10.5px;line-height:16px;padding:0 6px;border-radius:8px;background:var(--dsw-alias-bg-layer-2);border:.5px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-secondary)}' +
-			'.dsh-usage-bar{display:flex;align-items:center;gap:8px}' +
-			'.dsh-usage-bartrack{flex:1;height:4px;border-radius:2px;background:var(--dsw-alias-bg-layer-2);overflow:hidden;min-width:56px}' +
-			'.dsh-usage-barfill{height:100%;border-radius:2px;background:var(--dsw-alias-brand-primary)}' +
-			'.dsh-usage-note{font-size:11.5px;line-height:1.6;color:var(--dsw-alias-label-tertiary)}' +
-			'.dsh-usage-warn{font-size:12px;color:var(--dsw-alias-state-warn-primary)}' +
+			'.dsh-usage-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}' +
+			'.dsh-usage-chip{font-size:10px;line-height:17px;padding:0 7px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}' +
+			'.dsh-usage-bar{display:flex;align-items:center;gap:9px}' +
+			'.dsh-usage-bartrack{flex:1;height:5px;border-radius:3px;background:var(--dsw-alias-bg-layer-2);overflow:hidden;min-width:64px}' +
+			'.dsh-usage-barfill{height:100%;border-radius:3px;background:var(--dsw-alias-brand-primary)}' +
+			'.dsh-usage-status{margin-top:-10px;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}' +
+			'.dsh-usage-warn{color:var(--dsw-alias-state-warn-primary)}' +
 			'.dsh-usage-error{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--dsw-alias-state-error-primary)}' +
-			'.dsh-usage-loading{font-size:12.5px;color:var(--dsw-alias-label-tertiary)}';
+			'.dsh-usage-loading{font-size:12.5px;color:var(--dsw-alias-label-tertiary)}' +
+			'@media(max-width:760px){.dsh-usage-page{gap:18px}.dsh-usage-card{grid-template-columns:repeat(4,minmax(0,1fr));padding:8px 0}.dsh-usage-metric{margin:8px 0}.dsh-usage-metric:nth-child(4n+1){border-left:none}.dsh-usage-sectionbar{align-items:flex-end}.dsh-usage-seg{gap:14px}}' +
+			'@media(max-width:480px){.dsh-usage-card{grid-template-columns:repeat(2,minmax(0,1fr))}.dsh-usage-metric:nth-child(odd){border-left:none}.dsh-usage-sectionbar{align-items:flex-start;flex-direction:column;gap:8px}.dsh-usage-seg{width:100%;justify-content:space-between}}';
 		/** Stable Cordis plugin name. */
 		const name = "ui-usage-stats";
 		/** The settings seat is the only client service this half needs, declared as a
@@ -57,11 +63,11 @@ window.__ModuleLoader__.load({
 		/** Last successful payload, so a reopened panel has something to paint. */
 		let lastPayload = null;
 
-		/** One labelled metric cell. */
-		function metric(label, value) {
-			return React.createElement("div", { className: "dsh-usage-metric" },
+		/** One value-first metric cell, matching the shell's compact dashboard language. */
+		function metric(label, value, featured = false) {
+			return React.createElement("div", { className: "dsh-usage-metric" + (featured ? " featured" : "") },
+				React.createElement("span", { className: "dsh-usage-metric-value", title: value }, value),
 				React.createElement("span", { className: "dsh-usage-metric-label" }, label),
-				React.createElement("span", { className: "dsh-usage-metric-value" }, value),
 			);
 		}
 
@@ -91,29 +97,23 @@ window.__ModuleLoader__.load({
 			);
 		}
 
-		/** Summary card: corpus totals and the four accounting buckets. */
+		/** Summary strip: all corpus counters in one quiet, divided surface. */
 		function TotalsCard(props) {
 			const totals = props.totals;
 			return React.createElement("div", { className: "dsh-usage-card" },
-				React.createElement("div", null,
-					React.createElement("div", { className: "dsh-usage-metric-label" }, "总用量（token）"),
-					React.createElement("div", { className: "dsh-usage-hero" }, totals.text.total),
-				),
-				React.createElement("div", { className: "dsh-usage-metrics" },
-					metric("输入", totals.text.input),
-					metric("缓存读", totals.text.cacheRead),
-					metric("缓存写", totals.text.cacheWrite),
-					metric("输出", totals.text.output),
-					metric("推理（含于输出）", totals.text.reasoning),
-					metric("请求数", totals.text.requests),
-					metric("会话数", totals.text.sessions),
-				),
+				metric("累计 Token", totals.text.total, true),
+				metric("输入", totals.text.input),
+				metric("输出", totals.text.output),
+				metric("推理", totals.text.reasoning),
+				metric("缓存读 / 写", totals.text.cacheRead + " / " + totals.text.cacheWrite),
+				metric("请求数", totals.text.requests),
+				metric("会话数", totals.text.sessions),
 			);
 		}
 
 		/** Provider-first view: one card per provider, one row per model. */
 		function ProvidersView(props) {
-			return React.createElement("div", { className: "dsh-usage-list", style: { display: "flex", flexDirection: "column", gap: "10px" } },
+			return React.createElement("div", { className: "dsh-usage-list" },
 				props.data.providers.map((provider) => React.createElement("div", { className: "dsh-usage-provcard", key: provider.provider },
 					React.createElement("div", { className: "dsh-usage-provhead" },
 						React.createElement("div", { className: "dsh-usage-provname" }, provider.provider),
@@ -236,55 +236,51 @@ window.__ModuleLoader__.load({
 			};
 			React.useEffect(() => { load(); }, []);
 			const data = state.data;
-			const header = React.createElement("div", { className: "dsh-usage-head" },
-				React.createElement("div", { className: "dsh-usage-title" }, "用量统计"),
-			);
 			if (state.phase === "error" && data === null) {
-				return React.createElement("div", { className: "dsh-usage-page" }, header,
+				return React.createElement("div", { className: "dsh-usage-page" },
 					React.createElement("div", { className: "dsh-usage-error" }, "统计失败：" + state.error),
 					React.createElement("button", { type: "button", className: "dsh-usage-btn", onClick: load }, "重试"),
 				);
 			}
 			if (data === null) {
-				return React.createElement("div", { className: "dsh-usage-page" }, header,
+				return React.createElement("div", { className: "dsh-usage-page" },
 					React.createElement("div", { className: "dsh-usage-loading" }, "正在统计各提供商与模型的用量…"),
 				);
 			}
-			const notes = [
-				"用量来自各提供商在会话日志中上报的 token 计数，非估算值；推理 token 已包含在输出中，不重复计入总量。",
-				"同名模型由多个提供商提供服务时按提供商分别统计，「按模型」视图会合并并列出全部提供商。",
-				"统计范围包含子 Agent 会话；仅统计 token，不折算费用，fork 继承的事件已排除，不会重复计数。",
-				"为提高速度，重复打开面板会复用上一次结果；会话日志有新内容时自动重新折叠。",
-			];
-			if (data.sessions.skipped > 0) notes.push("有 " + data.sessions.skipped + " 个会话日志无法读取，未计入统计。");
-			if (data.totals.sessions === 0) notes.push("没有可统计的会话记录。");
+			const status = data.sessions.skipped > 0
+				? React.createElement("div", { className: "dsh-usage-status dsh-usage-warn" }, data.sessions.skipped + " 个会话日志未计入")
+				: data.totals.sessions === 0
+					? React.createElement("div", { className: "dsh-usage-status" }, "暂无可统计的会话")
+					: null;
 			return React.createElement("div", { className: "dsh-usage-page" },
-				header,
 				React.createElement(TotalsCard, { totals: data.totals }),
-				React.createElement("div", { className: "dsh-usage-seg" },
-					React.createElement("button", {
-						type: "button",
-						className: "dsh-usage-segbtn" + (mode === MODE_PROVIDERS ? " on" : ""),
-						"aria-pressed": mode === MODE_PROVIDERS ? "true" : "false",
-						onClick: () => setMode(MODE_PROVIDERS),
-					}, "按提供商"),
-					React.createElement("button", {
-						type: "button",
-						className: "dsh-usage-segbtn" + (mode === MODE_MODELS ? " on" : ""),
-						"aria-pressed": mode === MODE_MODELS ? "true" : "false",
-						onClick: () => setMode(MODE_MODELS),
-					}, "按模型"),
-					React.createElement("button", {
-						type: "button",
-						className: "dsh-usage-segbtn" + (mode === MODE_SESSIONS ? " on" : ""),
-						"aria-pressed": mode === MODE_SESSIONS ? "true" : "false",
-						onClick: () => setMode(MODE_SESSIONS),
-					}, "按会话"),
+				status,
+				React.createElement("div", { className: "dsh-usage-sectionbar" },
+					React.createElement("h2", { className: "dsh-usage-sectiontitle" }, "用量明细"),
+					React.createElement("div", { className: "dsh-usage-seg" },
+						React.createElement("button", {
+							type: "button",
+							className: "dsh-usage-segbtn" + (mode === MODE_PROVIDERS ? " on" : ""),
+							"aria-pressed": mode === MODE_PROVIDERS ? "true" : "false",
+							onClick: () => setMode(MODE_PROVIDERS),
+						}, "提供商"),
+						React.createElement("button", {
+							type: "button",
+							className: "dsh-usage-segbtn" + (mode === MODE_MODELS ? " on" : ""),
+							"aria-pressed": mode === MODE_MODELS ? "true" : "false",
+							onClick: () => setMode(MODE_MODELS),
+						}, "模型"),
+						React.createElement("button", {
+							type: "button",
+							className: "dsh-usage-segbtn" + (mode === MODE_SESSIONS ? " on" : ""),
+							"aria-pressed": mode === MODE_SESSIONS ? "true" : "false",
+							onClick: () => setMode(MODE_SESSIONS),
+						}, "会话"),
+					),
 				),
 				mode === MODE_PROVIDERS ? React.createElement(ProvidersView, { data }) : null,
 				mode === MODE_MODELS ? React.createElement(ModelsView, { data }) : null,
 				mode === MODE_SESSIONS ? React.createElement(SessionsView, { data }) : null,
-				React.createElement("div", { className: "dsh-usage-note" }, notes.join(" ")),
 			);
 		}
 
