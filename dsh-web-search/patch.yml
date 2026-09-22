@@ -1,0 +1,17 @@
+# Web search provider seam: route ctx.web search through this bundle's
+# switchable multi-engine provider (Tavily free tier / model-native web search /
+# DeepSeek official) and retire the DeepSeek-only provider row so its hard-coded
+# settings card no longer renders. Every line is a declarative loader patch —
+# nothing in DSH itself is modified, and removing this bundle restores the
+# shipped behavior.
+- insert:
+    - id: web-search
+      name: 'dsh-web-search'
+- id: web-search-deepseek
+  name: '@deepseek-ai/dsh-web-search-deepseek'
+  disabled: true
+- id: web
+  name: '@deepseek-ai/dsh-web'
+  config:
+    searchProvider: web-search
+    fetchProvider: http

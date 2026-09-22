@@ -49,6 +49,16 @@
 
 两个 server 都由 `npx -y` 启动，不要求全局安装 npm 包。
 
+### 网页搜索
+
+`dsh-web-search` 为 `web_search` 工具提供可切换的搜索后端，在“设置 → 插件 → 插件配置 →
+网页搜索”卡片中一键更换，即时生效；不修改 DSH 本体，卸载即恢复内置行为。
+
+- Tavily（默认）：免费 1000 次/月，LLM 优化搜索；
+- 模型自带联网：MiMo 服务端 `web_search`，约 ¥16/千次 + token 费（需在 MiMo 控制台开通「Web Search 插件」）；
+- DeepSeek 官方：沿用内置搜索，消耗 DeepSeek 余额；
+- API Key 经 credentials 域保存，不落 `settings.yaml` 明文。
+
 ### 微信连接
 
 `dsh-channel-weixin` 让用户通过微信文字消息操作 DSH：扫码连接后，微信里的文字作为任务
@@ -82,6 +92,9 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-clie
 
 # CodeGraph + Context7 MCP 工具集
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
+
+# 免费网页搜索（Tavily / 模型自带联网 / DeepSeek 可切换）
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
 
 # 微信连接
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-channel-weixin"
@@ -130,6 +143,14 @@ Context7 默认可以直接启动；如果服务端提示限流或要求认证�
 
 Host 端修改需要重启 DSH；只修改客户端界面时刷新页面即可。
 
+### 切换网页搜索
+
+1. 打开 DSH 的“设置”；
+2. 进入“插件 → 插件配置 → 网页搜索”；
+3. 选择搜索工具（Tavily / 模型自带联网 / DeepSeek 官方），填入 API Key 并保存。
+
+切换即时生效、无需重启；各引擎的开通与计费说明见 `dsh-web-search/README.md`。
+
 ### 使用 MCP 工具
 
 - CodeGraph 查询要求目标项目已有 `.codegraph/`；
@@ -151,10 +172,10 @@ dsh plugin --profile web update
 dsh plugin --profile web update dsh-client-ui-usage-stats
 ```
 
-卸载本仓库的四个 bundle：
+卸载本仓库的 bundle：
 
 ```powershell
-dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-channel-weixin
+dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-channel-weixin dsh-web-search
 ```
 
 卸载微信连接**不会删除已保存的凭证与绑定状态**（`$DSH_HOME/storages/channel-weixin/`）。
@@ -199,15 +220,19 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-usage-stats
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-channel-weixin
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
 ```
 
-运行测试（用量统计与微信连接都带 `node --test` 测试）：
+运行测试（用量统计、微信连接与网页搜索都带 `node --test` 测试）：
 
 ```powershell
 cd dsh-client-ui-usage-stats
 npm test
 
 cd ..\dsh-channel-weixin
+npm test
+
+cd ..\dsh-web-search
 npm test
 ```
 
@@ -219,6 +244,7 @@ dsh-bundles/
 ├── dsh-client-ui-usage-stats/
 ├── dsh-bundle-mcp-toolkit/
 ├── dsh-channel-weixin/
+├── dsh-web-search/
 ├── docs/                    # 插件计划与阶段核对报告
 └── preferences/             # 只读参考项目
 ```

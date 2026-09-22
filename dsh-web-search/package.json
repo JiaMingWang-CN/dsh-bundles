@@ -1,0 +1,33 @@
+{
+  "name": "dsh-web-search",
+  "version": "0.1.0",
+  "description": "Free web search for DSH: a switchable multi-engine web_search provider (Tavily / model-native web search / DeepSeek official) configured from Settings > Plugins > Web search",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-launch-environment": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-web": "^0.1.5-rc.2"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-launch-environment": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-web": "^0.1.5-rc.2"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./patch.yml"
+    }
+  },
+  "license": "MIT"
+}

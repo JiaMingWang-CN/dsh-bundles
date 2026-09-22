@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, cross-session token analytics, and a CodeGraph + Context7 MCP toolkit.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, cross-session token analytics, a CodeGraph + Context7 MCP toolkit, and a free multi-engine web search provider.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -49,6 +49,15 @@ Each directory is an independently installable bundle. Install only what you nee
 
 Both servers launch through `npx -y`; no global npm package installation is required.
 
+### Web search
+
+`dsh-web-search` gives the `web_search` tool a switchable search backend, chosen from the Web search card under Settings > Plugins > Plugin configuration and applied live. DSH itself is never modified; uninstalling restores the shipped behavior.
+
+- Tavily (default): free tier of 1000 searches/month, LLM-optimized results;
+- Model-native web search: MiMo server-side `web_search`, billed per search round (about ¥16 per 1000 plus token fees; activate the "Web Search plugin" in the MiMo console);
+- DeepSeek official: the built-in search route, billed on the DeepSeek account;
+- API keys are stored through the credentials domain, never as `settings.yaml` plaintext.
+
 ## Quick install
 
 ### Requirements
@@ -70,6 +79,9 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-clie
 
 # CodeGraph + Context7 MCP toolkit
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
+
+# Free multi-engine web search (Tavily / model-native / DeepSeek switchable)
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
 ```
 
 Confirm that the bundles are present in the web profile:
@@ -115,6 +127,14 @@ A notification is sent only when a main session transitions from running to comp
 
 Host-side changes require a DSH restart. Client-only UI changes require only a page refresh.
 
+### Switch the web search tool
+
+1. Open DSH Settings;
+2. Go to Plugins > Plugin configuration > Web search;
+3. Pick the search tool (Tavily / model-native / DeepSeek official), enter the API key, and save.
+
+Switching takes effect immediately with no restart; per-engine setup and billing notes live in `dsh-web-search/README.md`.
+
 ### Use the MCP tools
 
 - CodeGraph queries require a `.codegraph/` index in the target project;
@@ -136,10 +156,10 @@ Update one plugin:
 dsh plugin --profile web update dsh-client-ui-usage-stats
 ```
 
-Remove all three bundles from this repository:
+Remove these bundles:
 
 ```powershell
-dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit
+dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-web-search
 ```
 
 Restart DSH after updating or uninstalling.
@@ -180,12 +200,16 @@ Clone the repository and install each bundle by local path:
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-usage-stats
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
 ```
 
-Run the usage analytics tests:
+Run the tests (usage analytics and web search both ship `node --test` suites):
 
 ```powershell
 cd dsh-client-ui-usage-stats
+npm test
+
+cd ..\dsh-web-search
 npm test
 ```
 
@@ -195,5 +219,6 @@ Repository layout:
 dsh-bundles/
 ├── dsh-client-ui-task-notify/
 ├── dsh-client-ui-usage-stats/
-└── dsh-bundle-mcp-toolkit/
+├── dsh-bundle-mcp-toolkit/
+└── dsh-web-search/
 ```
