@@ -2,7 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、跨会话 Token 用量面板，以及 CodeGraph + Context7 MCP 工具集。
+一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、跨会话 Token 用量面板、CodeGraph + Context7 MCP 工具集、可切换的多引擎网页搜索、微信连接，以及 Jev 增强层。
 
 每个目录都是一个可单独安装的 bundle。只安装需要的部分即可。
 
@@ -71,6 +71,17 @@
 - 边界：单账号、仅扫码绑定的本人私聊；仅文字；微信任务按完全权限执行；
   停机期间错过的定时触发只标记不补跑；主动推送受微信服务端限制，须以真实联调结论为准。
 
+### Jev 增强
+
+`dsh-jev-enhancement` 是模型无关的 Jev（TypeSafe System One）增强层：按
+`provider/model` 精确启用的上下文筛选与结构化决策，在“设置 → Jev 增强”页面配置；
+不修改 DSH 本体，原生压缩、重试与审批始终是回退路径，默认全局关闭。
+
+- Context Compaction：基于语义判断的**原文筛选**（不是摘要），原文保留在会话日志中，可一键恢复；
+- Decision Assistance：故障分类、路线选择、风险判断三个节点，只能在白名单内采纳、只能收紧不放松；
+- 不可重现内容硬保护、失败回退、调用预算与熔断；禁用后自动从原始会话材料重建；
+- 启用即可能向 TypeSafe 发送上下文片段，密钥经 credentials 域保存，审计不记录原文。
+
 ## 快速安装
 
 ### 前置条件
@@ -98,6 +109,9 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-
 
 # 微信连接
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-channel-weixin"
+
+# Jev 增强（默认关闭，需在设置中显式启用）
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-jev-enhancement"
 ```
 
 确认 bundle 已进入 web profile：
@@ -175,7 +189,7 @@ dsh plugin --profile web update dsh-client-ui-usage-stats
 卸载本仓库的 bundle：
 
 ```powershell
-dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-channel-weixin dsh-web-search
+dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-channel-weixin dsh-web-search dsh-jev-enhancement
 ```
 
 卸载微信连接**不会删除已保存的凭证与绑定状态**（`$DSH_HOME/storages/channel-weixin/`）。
@@ -221,9 +235,10 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-usage-stats
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-channel-weixin
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-jev-enhancement
 ```
 
-运行测试（用量统计、微信连接与网页搜索都带 `node --test` 测试）：
+运行测试（用量统计、微信连接、网页搜索与 Jev 增强都带 `node --test` 测试）：
 
 ```powershell
 cd dsh-client-ui-usage-stats
@@ -233,6 +248,9 @@ cd ..\dsh-channel-weixin
 npm test
 
 cd ..\dsh-web-search
+npm test
+
+cd ..\dsh-jev-enhancement
 npm test
 ```
 
@@ -245,6 +263,7 @@ dsh-bundles/
 ├── dsh-bundle-mcp-toolkit/
 ├── dsh-channel-weixin/
 ├── dsh-web-search/
+├── dsh-jev-enhancement/
 ├── docs/                    # 插件计划与阶段核对报告
 └── preferences/             # 只读参考项目
 ```

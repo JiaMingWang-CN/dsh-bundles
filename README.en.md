@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, cross-session token analytics, a CodeGraph + Context7 MCP toolkit, and a free multi-engine web search provider.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, cross-session token analytics, a CodeGraph + Context7 MCP toolkit, a free multi-engine web search provider, a WeChat channel, and a Jev enhancement layer.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -58,6 +58,24 @@ Both servers launch through `npx -y`; no global npm package installation is requ
 - DeepSeek official: the built-in search route, billed on the DeepSeek account;
 - API keys are stored through the credentials domain, never as `settings.yaml` plaintext.
 
+### WeChat channel
+
+`dsh-channel-weixin` lets you drive DSH with text messages from WeChat: after linking by QR code, text messages sent from WeChat are submitted as tasks to the bound DSH session, and results are replied back to WeChat paragraph by paragraph.
+
+- Standalone implementation: does not depend on, start, or copy code from OpenClaw; zero third-party runtime dependencies (Node built-ins only);
+- Its own settings entry (`order: 35`, right after "Usage statistics") showing link status, the bound session and directory, and queue/scheduled-task counts;
+- Commands (send `/help` in WeChat): `/new`, `/sessions`, `/use`, `/cwd`, `/stop`, `/queue`, `/schedule`, `/agents`, `/agent`, `/models`, `/model`, `/usage`, `/search`;
+- Boundaries: single account, private chats from the QR-linked user only; text only; WeChat tasks run with full permissions; scheduled triggers missed while DSH is down are flagged but not re-run; proactive push is subject to WeChat server-side limits and must be confirmed in real integration testing.
+
+### Jev enhancement
+
+`dsh-jev-enhancement` is a model-agnostic Jev (TypeSafe System One) enhancement layer: context filtering and structured decision-making enabled per exact `provider/model`, configured from the "Jev 增强" settings page. DSH itself is never modified; native compaction, retries, and approvals always remain the fallback path, and everything is disabled globally by default.
+
+- Context Compaction: semantics-based **original-text filtering** (not summarization); the original text stays in the session log and can be restored with one click;
+- Decision Assistance: three decision nodes (fault classification, route selection, risk judgment) that can only adopt suggestions inside a whitelist and only tighten permissions, never loosen them;
+- Hard protection for non-reproducible content, failure fallback, call budgets, and a circuit breaker; after disabling, context is rebuilt automatically from the original session material;
+- Enabling it may send context snippets to TypeSafe; keys are stored via the credentials domain and the audit log never records original text.
+
 ## Quick install
 
 ### Requirements
@@ -82,6 +100,12 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bund
 
 # Free multi-engine web search (Tavily / model-native / DeepSeek switchable)
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
+
+# WeChat channel
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-channel-weixin"
+
+# Jev enhancement (disabled by default; enable it explicitly in Settings)
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-jev-enhancement"
 ```
 
 Confirm that the bundles are present in the web profile:
@@ -159,8 +183,10 @@ dsh plugin --profile web update dsh-client-ui-usage-stats
 Remove these bundles:
 
 ```powershell
-dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-web-search
+dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-channel-weixin dsh-web-search dsh-jev-enhancement
 ```
+
+Uninstalling the WeChat channel does **not** delete saved credentials and binding state (`$DSH_HOME/storages/channel-weixin/`). To wipe everything, log out from the settings page first, or delete that directory manually.
 
 Restart DSH after updating or uninstalling.
 
@@ -201,15 +227,23 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-usage-stats
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-channel-weixin
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-jev-enhancement
 ```
 
-Run the tests (usage analytics and web search both ship `node --test` suites):
+Run the tests (usage analytics, the WeChat channel, web search, and the Jev enhancement all ship `node --test` suites):
 
 ```powershell
 cd dsh-client-ui-usage-stats
 npm test
 
 cd ..\dsh-web-search
+npm test
+
+cd ..\dsh-channel-weixin
+npm test
+
+cd ..\dsh-jev-enhancement
 npm test
 ```
 
@@ -220,5 +254,7 @@ dsh-bundles/
 ├── dsh-client-ui-task-notify/
 ├── dsh-client-ui-usage-stats/
 ├── dsh-bundle-mcp-toolkit/
-└── dsh-web-search/
+├── dsh-channel-weixin/
+├── dsh-web-search/
+└── dsh-jev-enhancement/
 ```
