@@ -264,6 +264,5 @@ dsh-bundles/
 ├── dsh-channel-weixin/
 ├── dsh-web-search/
 ├── dsh-jev-enhancement/
-├── docs/                    # 插件计划与阶段核对报告
 └── preferences/             # 只读参考项目
 ```
