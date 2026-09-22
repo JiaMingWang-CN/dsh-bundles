@@ -1,0 +1,9 @@
+# Jev enhancement layer: one bundle-local plugin inserted ahead of the shipped
+# composition so its `agent/pre-step` listener runs before the native compaction
+# backend's pressure check (Jev filters first, the native budget check runs on
+# the resulting view). Nothing in DSH itself is modified: the native compaction
+# backend, retry executor, and approval pipeline stay mounted and remain the
+# fallback path whenever Jev is disabled, unselected, or fails.
+- insert:
+    - id: jev-enhancement
+      name: 'dsh-jev-enhancement'

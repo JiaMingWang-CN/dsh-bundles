@@ -1,0 +1,31 @@
+{
+  "name": "dsh-jev-enhancement",
+  "version": "0.1.0",
+  "description": "Jev enhancement layer for DSH: model-scoped context compaction (semantic original-text filtering) and structured decision assistance backed by the TypeSafe System One (Jev) API, configured from Settings > Jev 增强",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-launch-environment": "^0.1.5-rc.2"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-launch-environment": "^0.1.5-rc.2"
+  },
+  "dsh": {
+    "client": {
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./patch.yml"
+    }
+  },
+  "license": "MIT"
+}
