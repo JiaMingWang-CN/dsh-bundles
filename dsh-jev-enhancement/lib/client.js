@@ -453,6 +453,13 @@ const rules = (function () {
 			riskNoul: "风险判断采纳门槛（Noul 值）",
 			statusTitle: "状态反馈",
 			statusDescription: "配置校验、增强不可用原因与回退状态；不显示密钥或敏感上下文。",
+			approvalTitle: "当前会话工具审批",
+			approvalHint: "只更改当前会话的审批策略，不更改沙箱模式或其他会话。ask 将风险请求交给 DSH 审批界面；never 会直接拒绝。之后切换 DSH 权限预设可能覆盖本策略，请刷新确认。",
+			approvalAsk: "需要时询问（ask）",
+			approvalNever: "不询问并拒绝（never）",
+			approvalNoSession: "请先选择一个会话。",
+			approvalFailed: "审批策略读取或切换失败；请检查会话与浏览器认证。",
+			approvalRefresh: "刷新审批状态",
 			test: "测试连接",
 			testing: "测试中…",
 			exportLog: "导出日志",
@@ -673,6 +680,11 @@ const rules = (function () {
 			const [keyConfigured, setKeyConfigured] = React.useState(false);
 			const [selectedKey, setSelectedKey] = React.useState(null);
 			const [status, setStatus] = React.useState(null);
+			const [currentSessionId, setCurrentSessionId] = React.useState(() => props.sessions?.list?.getSnapshot?.().current ?? null);
+			const [approvalPolicy, setApprovalPolicy] = React.useState(null);
+			const [approvalBusy, setApprovalBusy] = React.useState(false);
+			const [approvalFailed, setApprovalFailed] = React.useState(false);
+			const [approvalRefreshKey, setApprovalRefreshKey] = React.useState(0);
 			const [testState, setTestState] = React.useState(null);
 			const [catalog, setCatalog] = React.useState(null);
 			const [catalogError, setCatalogError] = React.useState(false);
@@ -701,6 +713,45 @@ const rules = (function () {
 				}).catch(() => setCatalogError(true));
 			}, [remote]);
 			React.useEffect(() => { refreshStatus(); }, [refreshStatus]);
+			React.useEffect(() => props.sessions?.list?.subscribe?.(() => {
+				setCurrentSessionId(props.sessions.list.getSnapshot().current ?? null);
+			}), [props.sessions]);
+			React.useEffect(() => {
+				setApprovalPolicy(null);
+				setApprovalFailed(false);
+				if (typeof currentSessionId !== "string" || currentSessionId === "") return;
+				let cancelled = false;
+				fetch(rules.ROUTE_PREFIX + "/approval-policy", {
+					method: "POST",
+					headers: { "content-type": "application/json", "x-jev-enhancement": "1" },
+					body: JSON.stringify({ sessionId: currentSessionId })
+				}).then((response) => response.json()).then((body) => {
+					if (cancelled) return;
+					if (!body.ok || body.sessionId !== currentSessionId) throw new Error("approval unavailable");
+					setApprovalPolicy(body.policy);
+				}).catch(() => { if (!cancelled) setApprovalFailed(true); });
+				return () => { cancelled = true; };
+			}, [currentSessionId, approvalRefreshKey]);
+			const changeApproval = async (policy) => {
+				const sessionId = props.sessions?.list?.getSnapshot?.().current;
+				if (sessionId !== currentSessionId || !sessionId || approvalBusy || approvalPolicy === null) return;
+				setApprovalBusy(true);
+				setApprovalFailed(false);
+				try {
+					const response = await fetch(rules.ROUTE_PREFIX + "/approval-policy", {
+						method: "POST",
+						headers: { "content-type": "application/json", "x-jev-enhancement": "1" },
+						body: JSON.stringify({ sessionId, policy })
+					});
+					const body = await response.json();
+					if (!response.ok || !body.ok || body.sessionId !== sessionId || body.policy !== policy) throw new Error("approval change failed");
+					if (props.sessions?.list?.getSnapshot?.().current === sessionId) setApprovalPolicy(policy);
+				} catch {
+					if (props.sessions?.list?.getSnapshot?.().current === sessionId) setApprovalFailed(true);
+				} finally {
+					setApprovalBusy(false);
+				}
+			};
 
 			const editGlobal = (field, value) => {
 				setDraft((prev) => ({ ...prev, global: { ...prev.global, [field]: value } }));
@@ -897,6 +948,18 @@ const rules = (function () {
 						disabled: !writable,
 						onEdit: (patch) => editModel(model.key, patch)
 					}),
+				h("div", { className: "dsh-jev-card" },
+					h("h3", { className: "dsh-jev-title" }, COPY.approvalTitle),
+					h("p", { className: "dsh-jev-description" }, COPY.approvalHint),
+					!currentSessionId ? h("p", { className: "dsh-jev-hint" }, COPY.approvalNoSession) :
+						h("div", { className: "dsh-jev-row" },
+							h("span", { className: "dsh-jev-label" }, approvalPolicy === null ? "—" : "当前：" + approvalPolicy),
+							h("button", { type: "button", className: "dsh-jev-btn", disabled: approvalBusy || approvalPolicy === null || approvalPolicy === "ask", onClick: () => changeApproval("ask") }, COPY.approvalAsk),
+							h("button", { type: "button", className: "dsh-jev-btn", disabled: approvalBusy || approvalPolicy === null || approvalPolicy === "never", onClick: () => changeApproval("never") }, COPY.approvalNever),
+							h("button", { type: "button", className: "dsh-jev-btn", disabled: approvalBusy, onClick: () => setApprovalRefreshKey((value) => value + 1) }, COPY.approvalRefresh)
+						),
+					approvalFailed ? h("p", { className: "dsh-jev-error", role: "status" }, COPY.approvalFailed) : null
+				),
 				h("div", { className: "dsh-jev-card" },
 					h("h3", { className: "dsh-jev-title" }, COPY.statusTitle),
 					h("p", { className: "dsh-jev-description" }, COPY.statusDescription),

@@ -489,6 +489,54 @@ test("empty runs and budget exhaustion are counted, never spammed as judgments",
 	assert.equal(status.audit.counters.nativeFallbacks, 1, "one budget episode, one record");
 });
 
+test("current-session approval switch authenticates, preserves sandbox and rejects invalid input", async () => {
+	const session = createFakeSession();
+	const agent = agentFor(session);
+	let authenticated = false;
+	const mounted = host(enabledSection(), createLaunchEnvironmentSnapshot([]), {
+		agents: { get: (id) => id === session.id ? agent : undefined },
+		connection: { requestRejection: () => authenticated ? undefined : 401 },
+		approval: {
+			config: { policy: "never" },
+			overrideOf: (value) => value.snapshotEvents().filter((event) => event.type === "approval/policy").at(-1)?.data.policy,
+			setPolicy: (value, policy) => value.session.append("approval/policy", { policy })
+		}
+	});
+	const route = mounted.routes.get(testing.ROUTE_PREFIX);
+	const send = async (body, headers = { "x-jev-enhancement": "1" }) => {
+		const response = { statusCode: 0, setHeader() {}, end(payload) { this.body = JSON.parse(payload); } };
+		await route.handler({ method: "POST", url: testing.APPROVAL_PATH, headers, async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify(body)); } }, response);
+		return response;
+	};
+	assert.equal((await send({ sessionId: session.id, policy: "ask" })).statusCode, 401);
+	assert.equal((await send({ sessionId: session.id, policy: "ask" }, {})).statusCode, 403);
+	authenticated = true;
+	assert.equal((await send({ sessionId: session.id, policy: "invalid" })).statusCode, 400);
+	assert.equal((await send({ sessionId: "another", policy: "ask" })).statusCode, 404);
+	assert.deepEqual(session.snapshotEvents(), []);
+	const changed = await send({ sessionId: session.id, policy: "ask" });
+	assert.equal(changed.statusCode, 200);
+	assert.deepEqual(changed.body, { ok: true, sessionId: session.id, policy: "ask" });
+	assert.deepEqual(session.snapshotEvents().map((event) => event.type), ["approval/policy"], "the sandbox is untouched");
+	assert.equal((await send({ sessionId: session.id })).body.policy, "ask");
+	assert.equal((await send({ sessionId: session.id, policy: "never" })).body.policy, "never");
+	assert.deepEqual(session.snapshotEvents().map((event) => event.type), ["approval/policy", "approval/policy"]);
+});
+
+test("the approval control fails closed without the browser auth service", async () => {
+	const session = createFakeSession();
+	const mounted = host(enabledSection(), createLaunchEnvironmentSnapshot([]), {
+		agents: { get: () => agentFor(session) }, approval: { setPolicy() { throw new Error("should not run"); } }
+	});
+	const response = { statusCode: 0, setHeader() {}, end(payload) { this.body = JSON.parse(payload); } };
+	await mounted.routes.get(testing.ROUTE_PREFIX).handler({
+		method: "POST", url: testing.APPROVAL_PATH, headers: { "x-jev-enhancement": "1" },
+		async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ sessionId: session.id, policy: "ask" })); }
+	}, response);
+	assert.equal(response.statusCode, 503);
+	assert.deepEqual(session.snapshotEvents(), []);
+});
+
 test("the status surface is a whitelist and controls refuse foreign callers", async () => {
 	const mounted = host(enabledSection(), createLaunchEnvironmentSnapshot([]), {
 		tokenMeter: meterWith(10),

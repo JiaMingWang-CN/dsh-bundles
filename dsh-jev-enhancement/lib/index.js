@@ -52,6 +52,7 @@ const PROTOCOL_OVERHEAD = 4096;
 const STATUS_PATH = rules.ROUTE_PREFIX + "/status";
 const TEST_PATH = rules.ROUTE_PREFIX + "/test";
 const RESTORE_PATH = rules.ROUTE_PREFIX + "/restore";
+const APPROVAL_PATH = rules.ROUTE_PREFIX + "/approval-policy";
 const LOG_PATH = rules.ROUTE_PREFIX + "/log";
 
 const acceptance = z.object({
@@ -686,6 +687,49 @@ function apply(ctx, config) {
 			}
 			return;
 		}
+		if (pathname === APPROVAL_PATH) {
+			if (request.method !== "POST") {
+				sendJson(response, 405, { ok: false, reason: "method-not-allowed" });
+				return;
+			}
+			if (!isTrustedPageRequest(request)) {
+				sendJson(response, 403, { ok: false, reason: "forbidden" });
+				return;
+			}
+			/* Unlike status, this changes session authority. A custom header is not
+			 * authentication; require the Host's browser-session cookie and Origin checks. */
+			const connection = ctx.get("connection");
+			if (typeof connection?.requestRejection !== "function") {
+				sendJson(response, 503, { ok: false, reason: "auth-unavailable" });
+				return;
+			}
+			const rejection = connection.requestRejection(request);
+			if (rejection !== undefined) {
+				sendJson(response, rejection, { ok: false, reason: "forbidden" });
+				return;
+			}
+			const body = await readJsonBody(request);
+			if (body === undefined || typeof body?.sessionId !== "string" || body.sessionId === "" || body.sessionId.length > 128 ||
+				(body.policy !== undefined && body.policy !== "ask" && body.policy !== "never")) {
+				sendJson(response, 400, { ok: false, reason: "invalid-request" });
+				return;
+			}
+			const approval = ctx.get("approval");
+			const agents = ctx.get("agents");
+			if (typeof approval?.setPolicy !== "function" || typeof approval?.overrideOf !== "function" || typeof agents?.get !== "function") {
+				sendJson(response, 503, { ok: false, reason: "approval-unavailable" });
+				return;
+			}
+			const agent = agents.get(body.sessionId);
+			if (agent?.session?.id !== body.sessionId) {
+				sendJson(response, 404, { ok: false, reason: "session-not-found" });
+				return;
+			}
+			if (body.policy !== undefined) approval.setPolicy(agent, body.policy);
+			const policy = approval.overrideOf(agent.session) ?? approval.config?.policy ?? "ask";
+			sendJson(response, 200, { ok: true, sessionId: body.sessionId, policy });
+			return;
+		}
 		if (pathname === RESTORE_PATH) {
 			if (request.method !== "POST") {
 				sendJson(response, 405, { ok: false, reason: "method-not-allowed" });
@@ -746,6 +790,7 @@ function apply(ctx, config) {
 
 /** Pure helpers exercised by the unit tests. */
 const testing = {
+	APPROVAL_PATH,
 	Config,
 	DEFAULT_OUTPUT_RESERVE,
 	LOG_PATH,

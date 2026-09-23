@@ -129,6 +129,12 @@
 已保存但当前未检测到的模型单独归入「已保存但当前未检测到」组，可保留或删除。
 
 4. 保存。保存失败不会显示为已生效；刷新或重开设置后配置正确恢复。
+5. 如果当前会话的审批策略为 `never`，风险判断提出的 `ask` 会被 DSH 立即拒绝。
+   可在本页「当前会话工具审批」中显式切为 `ask`，在 DSH 的工具审批卡片中
+   「允许一次」或「拒绝」。这只更改当前会话的 `approval/policy`，不更改
+   `sandbox/mode`、权限预设的默认值或其他会话；普通 `ask_user_question` 的回答
+   不等于工具审批。切换前已经被拒绝的调用不会自动重试；之后若切换 DSH 的
+   权限预设，该预设可能再次改写审批策略，请在本页刷新确认。
 
 运行期行为：
 
@@ -154,6 +160,7 @@
 | `/plugins/jev-enhancement/status` | GET | 白名单化状态：开关、模型策略摘要、配置校验、不可用原因、熔断、脱敏计数 |
 | `/plugins/jev-enhancement/test` | POST | 一次最小连通性调用（消耗 1 次 Jev 请求） |
 | `/plugins/jev-enhancement/restore` | POST | `{ "sessionId": "..." }`：撤销该会话的筛选，按原文恢复 |
+| `/plugins/jev-enhancement/approval-policy` | POST | `{ "sessionId": "..." }` 读取当前会话策略；附加 `"policy": "ask"` 或 `"never"` 显式切换。仅接受 DSH Connection 认证过的同源浏览器会话；无认证服务时不可用 |
 | `/plugins/jev-enhancement/log` | GET | 导出专属 Jev 审计日志为单个 JSONL 文件（同源 + 自定义头 guard） |
 
 ### 专属日志（jev-audit.jsonl）
