@@ -12,7 +12,7 @@
 const RECORD_LIMIT = 50;
 
 /** The only record fields ever retained — anything else is dropped at the door. */
-const RECORD_FIELDS = ["kind", "node", "reason", "decision", "accepted", "source", "code", "latencyMs", "spans", "removedTokens", "target"];
+const RECORD_FIELDS = ["kind", "node", "reason", "decision", "accepted", "source", "code", "latencyMs", "spans", "removedTokens", "netRemovedTokens", "jevCalls", "target"];
 
 /** Numeric counters this plugin maintains. */
 const COUNTER_KEYS = [
@@ -34,6 +34,7 @@ const COUNTER_KEYS = [
 	"routeSwitches",
 	"riskDecisions",
 	"riskEscalations",
+	"riskInsufficientEvidence",
 	"routeSkips",
 	"budgetFallbacks",
 	"nativeFallbacks"

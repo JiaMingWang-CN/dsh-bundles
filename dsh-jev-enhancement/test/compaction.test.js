@@ -166,6 +166,29 @@ test("the state never drops the goal or constraints and marks candidates as data
 	assert.equal(state.candidates[0].id, "u1");
 });
 
+test("planning supplies bounded ordered history without truncating candidate evidence", async () => {
+	const units = unitsFrom(staleChat(4));
+	let seen;
+	const plan = await planCompaction({
+		units, policy: POLICY, budgetTokens: 1000, totalTokens: 500,
+		goal: "the standing goal", constraints: "",
+		ask: async (request) => { seen = request.state; return askRemovingAll()(request); }
+	});
+	assert.equal(plan.reason, "ok");
+	assert.deepEqual(seen.history.map((entry) => entry.id), units.map((unit) => unit.id));
+	assert.equal(seen.candidates[0].text, units[1].text);
+	assert.ok(seen.history.every((entry) => !entry.text || entry.text.length <= 200));
+});
+
+test("large histories shed index entries before complete candidate evidence", () => {
+	const candidate = { id: "u1", text: "x".repeat(500), roles: ["user"], kind: "message", toolNames: [] };
+	const history = Array.from({ length: 200 }, (_, i) => ({ ...candidate, id: "h" + i, text: "q".repeat(1000) }));
+	const { state, dropped } = buildState("goal", "constraints", [candidate], history);
+	assert.deepEqual(dropped, []);
+	assert.equal(state.candidates[0].text, candidate.text);
+	assert.ok(state.history.length < history.length);
+});
+
 test("commit lands one shadow price plus one replacement per span, tail first", () => {
 	const session = staleChat(4);
 	const plan = {

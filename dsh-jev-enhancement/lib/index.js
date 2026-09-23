@@ -27,7 +27,7 @@ import { createBudgetTracker } from "./budget.js";
 import { createJevLog } from "./log.js";
 import { JevError, createTypeSafeClient } from "./typesafe.js";
 import { buildUnits, classifyProtection } from "./units.js";
-import { commitPlan, findJevMarkers, planCompaction, restoreMarker } from "./compaction.js";
+import { commitPlan, findJevMarkers, markerMessage, planCompaction, restoreMarker } from "./compaction.js";
 import { faultDecision, riskDecision, routeDecision } from "./decision.js";
 
 /** Stable Cordis plugin name; also the settings namespace and route prefix owner. */
@@ -397,21 +397,34 @@ function apply(ctx, config) {
 			signal,
 			ask: (request) => ask({ ...request, taskKey, stepKey: taskKey + ":" + turn + ":" + step })
 		});
+		if (plan === null) return;
 		audit.add("unitsProtected", plan.protectedCount);
 		if (plan.spans.length === 0) {
 			audit.count("compactionAborted", { reason: plan.reason });
 			return;
 		}
 
+		const markerCost = plan.spans.reduce((sum, span) => {
+			const estimate = meter.estimateMessage?.(markerMessage(span));
+			return sum + (Number.isFinite(estimate) ? Math.max(0, estimate) : 0);
+		}, 0);
+		const netRemovedTokens = Math.max(0, plan.removedTokens - markerCost);
 		if (policy.compaction.mode === "observe") {
 			/* Observation mode: advice only, the conversation is untouched. */
 			audit.count("compactionObserved", {
 				reason: "observe",
 				spans: plan.spans.length,
 				removedTokens: plan.removedTokens,
+				netRemovedTokens,
+				jevCalls: plan.jevCalls,
 				target: snapshot.target.provider + "/" + snapshot.target.model
 			});
 			audit.log("info", "jev-enhancement: observe pass would remove " + plan.spans.length + " span(s), ~" + plan.removedTokens + " tokens");
+			return;
+		}
+
+		if (netRemovedTokens === 0) {
+			audit.count("compactionAborted", { reason: "no-net-gain" });
 			return;
 		}
 
@@ -568,6 +581,9 @@ function apply(ctx, config) {
 			const gate = gateFor(exec.agent, "decision", "risk-judgment");
 			if (!gate.allowed) return decision;
 			if (contractDisabledAt > 0 || exec.signal?.aborted === true) return decision;
+			/* The registry, not Jev, owns unknown-tool errors. */
+			const tools = ctx.get("tools");
+			if (typeof tools?.get === "function" && tools.get(exec.name, exec.agent) === undefined) return decision;
 			const stepKey = String(exec.agent.session?.id ?? "session") + ":tool:" + String(exec.callId);
 			const advice = await riskDecision({
 				name: exec.name,
@@ -576,6 +592,10 @@ function apply(ctx, config) {
 				signal: exec.signal,
 				ask: (request) => ask({ ...request, taskKey: String(exec.agent.session?.id ?? "session"), stepKey })
 			});
+			if (advice.source === "insufficient-evidence") {
+				audit.count("riskInsufficientEvidence", { node: "risk-judgment" });
+				return decision;
+			}
 			audit.count("riskDecisions", { node: "risk-judgment" });
 			audit.decision({ node: "risk-judgment", decision: advice.risks.join("+") || "safe", accepted: advice.escalate, source: advice.source });
 			/* Escalation only: a denial or approval requirement is never loosened. */

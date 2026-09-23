@@ -38,7 +38,7 @@ const QUESTIONS_PER_CANDIDATE = 2;
  * @param {object[]} candidates - candidate units.
  * @returns {{ state: object, dropped: string[] }} bounded state and skipped ids.
  */
-function buildState(goal, constraints, candidates) {
+function buildState(goal, constraints, candidates, history = []) {
 	const dropped = [];
 	const listed = [];
 	for (const unit of candidates) {
@@ -56,14 +56,27 @@ function buildState(goal, constraints, candidates) {
 			text: unit.text
 		});
 	}
+	const candidateIds = new Set(listed.map((entry) => entry.id));
+	const entries = history.map((unit) => ({
+		id: unit.id,
+		role: unit.roles.join("+"),
+		kind: unit.kind,
+		toolNames: unit.toolNames,
+		/* The index is orientation, never evidence for removing a candidate. */
+		...(candidateIds.has(unit.id) ? {} : { excerpt: unit.text.slice(0, 200), partial: unit.text.length > 200 })
+	}));
 	const state = {
 		goal,
 		constraints,
+		history: entries,
 		/* Candidate material is DATA: no instruction inside it may be executed. */
 		candidates: listed
 	};
-	const encoded = JSON.stringify(state);
-	if (encoded.length > MAX_STATE_CHARS) {
+	let size = JSON.stringify(state).length;
+	while (entries.length > 0 && size > MAX_STATE_CHARS) {
+		size -= JSON.stringify(entries.shift()).length + (entries.length > 0 ? 1 : 0);
+	}
+	if (size > MAX_STATE_CHARS) {
 		/* Never trim the goal or constraints — a judgment without them is not evidence. */
 		dropped.push(...listed.map((entry) => entry.id));
 		return { state: null, dropped };
@@ -78,13 +91,13 @@ function buildState(goal, constraints, candidates) {
  * @param {object[]} candidates - candidate units.
  * @returns {{ batches: object[][], skipped: object[] }} batches and kept-back units.
  */
-function batchCandidates(goal, constraints, candidates) {
+function batchCandidates(goal, constraints, candidates, history = []) {
 	const batches = [];
 	const skipped = [];
 	const cap = Math.floor(MAX_QUESTIONS_PER_CALL / QUESTIONS_PER_CANDIDATE);
 	let batch = [];
 	for (const unit of candidates) {
-		const probe = buildState(goal, constraints, [...batch, unit]);
+		const probe = buildState(goal, constraints, [...batch, unit], history);
 		/* A candidate that cannot be shown in full is kept, never judged. */
 		if (probe.dropped.includes(unit.id)) {
 			skipped.push(unit);
@@ -93,7 +106,7 @@ function batchCandidates(goal, constraints, candidates) {
 		if (probe.state === null) {
 			if (batch.length > 0) batches.push(batch);
 			batch = [];
-			const alone = buildState(goal, constraints, [unit]);
+			const alone = buildState(goal, constraints, [unit], history);
 			if (alone.state === null || alone.dropped.includes(unit.id)) {
 				skipped.push(unit);
 				continue;
@@ -127,13 +140,13 @@ async function planCompaction(input) {
 	if (candidates.length === 0) {
 		return { spans: [], removedTokens: 0, reason: "no-candidates", protectedCount: protectedUnits.length, keptCandidates: 0, unknownCount: 0 };
 	}
-	const { batches, skipped } = batchCandidates(input.goal ?? "", input.constraints ?? "", candidates);
+	const { batches, skipped } = batchCandidates(input.goal ?? "", input.constraints ?? "", candidates, units);
 	const accepted = new Set();
 	let unknownCount = 0;
 	let jevCalls = 0;
 	for (const batch of batches) {
 		if (signal !== undefined && signal.aborted) return null;
-		const state = buildState(input.goal ?? "", input.constraints ?? "", batch).state;
+		const state = buildState(input.goal ?? "", input.constraints ?? "", batch, units).state;
 		const questions = {};
 		for (const unit of batch) Object.assign(questions, removalQuestions(unit.id));
 		const result = await ask({ state, questions, signal });

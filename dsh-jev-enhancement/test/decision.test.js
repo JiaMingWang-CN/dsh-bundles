@@ -167,6 +167,35 @@ test("deterministic risk rules escalate destructive, external and irreversible c
 	assert.deepEqual(detectRiskByRule("read", { path: "a.txt" }), []);
 });
 
+test("PowerShell deletion is detected, but variable names and prose are not commands", () => {
+	assert.deepEqual(detectRiskByRule("pwsh", { command: "Get-ChildItem docs | Remove-Item -Recurse -Force" }), ["destructive"]);
+	assert.deepEqual(detectRiskByRule("pwsh", { command: "Write-Output ok > out.txt; Remove-Item -Recurse docs" }).sort(), ["destructive", "write"]);
+	assert.deepEqual(detectRiskByRule("pwsh", { command: "$rm = Get-Command rm.exe; Write-Output $rm" }), []);
+	assert.deepEqual(detectRiskByRule("pwsh", { command: "Write-Output 'rm -rf docs'; Write-Output 'Remove-Item docs'" }), []);
+	assert.deepEqual(detectRiskByRule("pwsh", { command: "$rm = (Get-Command rm.exe).Source; & $rm -rf $targets" }), ["destructive"]);
+});
+
+test("a long unknown command never sends a misleading truncated risk assessment", async () => {
+	let calls = 0;
+	const result = await riskDecision({
+		name: "pwsh",
+		args: { command: "Write-Output '" + "x".repeat(500) + "'; Invoke-Something-Unknown" },
+		policy: POLICY,
+		ask: async () => { calls += 1; return { answers: {} }; }
+	});
+	assert.equal(result.source, "insufficient-evidence");
+	assert.equal(result.escalate, false);
+	assert.equal(calls, 0);
+	const cyclic = {}; cyclic.self = cyclic;
+	const unencodable = await riskDecision({ name: "pwsh", args: cyclic, policy: POLICY, ask: async () => { throw new Error("must not ask"); } });
+	assert.equal(unencodable.source, "insufficient-evidence");
+	const writeWithHiddenTail = await riskDecision({
+		name: "write_file", args: { content: "x".repeat(500) }, policy: POLICY,
+		ask: async () => { throw new Error("must not ask"); }
+	});
+	assert.equal(writeWithHiddenTail.source, "insufficient-evidence", "a known write cannot prove an unseen tail is non-destructive");
+});
+
 test("risk advice escalates to confirmation and never downgrades anything", async () => {
 	const ruled = await riskDecision({ name: "bash", args: { command: "rm -rf /tmp/x" }, policy: POLICY, ask: async () => { throw new Error("no call"); } });
 	assert.equal(ruled.source, "rule");

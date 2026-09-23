@@ -37,7 +37,7 @@ const TOOL_RISK_HINTS = {
 /** Deterministic command patterns per risk dimension (bash-style commands). */
 const COMMAND_RISK_PATTERNS = {
 	write: [/\btee\b/, /\bcp\b/, /\bmv\b/, />>/, /(?<!>)>(?!\s*>)/, /\bsed -i\b/],
-	destructive: [/\brm\b/, /\bdel\b/, /\berase\b/, /\bgit\s+(?:reset|clean)\b/, /\bdrop\s+(?:table|database)\b/i],
+	destructive: [/(?<![$\w.])rm\s+(?:-[\w]+\s+)*\S+/, /&\s*\$[a-z_][\w]*\s+-(?:rf|fr)\b/, /\bremove-item\b(?:\s|$)/, /\bdel\s+\S+/, /\berase\s+\S+/, /\bgit\s+(?:reset|clean)\b/, /\bdrop\s+(?:table|database)\b/i],
 	external: [/\bgit\s+push\b/, /\bcurl\b/, /\bwget\b/, /\bnpm\s+publish\b/, /\bpip\s+upload\b/, /\bssh\b/, /\bscp\b/],
 	irreversible: [/--force\b/, /-f\b.*\brm\b/, /\btruncate\b/i, /\bdelete\s+from\b/i, /\bgit\s+push\b.*--force/]
 };
@@ -160,7 +160,9 @@ function detectRiskByRule(name, args) {
 			if (typeof value === "string") commandText += "\n" + value;
 		}
 	}
-	const lowered = commandText.toLowerCase();
+	/* Quoted prose and file names are operands, not commands. Keep a placeholder
+	 * so `rm "path"` still has an argument after removing the quoted text. */
+	const lowered = commandText.replace(/'(?:''|[^'])*'|"(?:`.|[^"])*"/g, " ARG ").toLowerCase();
 	for (const [dimension, patterns] of Object.entries(COMMAND_RISK_PATTERNS)) {
 		if (patterns.some((pattern) => pattern.test(lowered))) dimensions.add(dimension);
 	}
@@ -179,17 +181,24 @@ async function riskDecision(input) {
 	const { name, args, policy, ask, signal } = input;
 	const limits = policy.decision.acceptanceByNode.riskJudgment;
 	const ruled = detectRiskByRule(name, args);
-	if (ruled.length > 0) {
-		return {
-			escalate: ruled.some((dimension) => ESCALATING_RISKS.includes(dimension)),
-			risks: ruled,
-			source: "rule"
-		};
+	if (ruled.some((dimension) => ESCALATING_RISKS.includes(dimension))) {
+		return { escalate: true, risks: ruled, source: "rule" };
 	}
+	/* A partial command is not evidence that the unseen suffix is safe. */
+	let serialized;
+	try {
+		serialized = JSON.stringify(args);
+	} catch {
+		return { escalate: false, risks: [], source: "insufficient-evidence" };
+	}
+	if (typeof serialized !== "string" || serialized.length > MAX_FACT_CHARS) {
+		return { escalate: false, risks: [], source: "insufficient-evidence" };
+	}
+	if (ruled.length > 0) return { escalate: false, risks: ruled, source: "rule" };
 	const result = await ask({
 		state: {
 			tool: boundFacts(name),
-			arguments: isObject(args) || typeof args === "string" ? boundFacts(JSON.stringify(args)) : ""
+			arguments: serialized
 		},
 		questions: riskQuestions(),
 		signal

@@ -272,6 +272,34 @@ test("active mode commits only validated spans through the model-free replacemen
 	}
 });
 
+test("an active compaction with no net gain leaves the session unchanged", async () => {
+	const session = staleSession();
+	const originalFetch = globalThis.fetch;
+	globalThis.fetch = async (input, init) => {
+		const questions = JSON.parse(init.body).questions;
+		return {
+			status: 200,
+			json: async () => ({
+				model: "jev-1.13.0",
+				answers: Object.fromEntries(Object.keys(questions).map((key) => [key, key.startsWith("removal_safe_")
+					? { type: "noul", noul: 0.95 }
+					: { type: "choice", choice: "remove", confidence: 0.95 }])),
+				usage: { input_tokens: 1, output_tokens: 1 }
+			})
+		};
+	};
+	try {
+		const meter = { ...meterWith(50000), estimateMessage: () => 100000 };
+		const mounted = host(enabledSection(), createLaunchEnvironmentSnapshot([]), {
+			tokenMeter: meter, llm: llmWith(), credentials: credentialsWith("key")
+		});
+		await mounted.listeners.get("agent/pre-step")({ agent: agentFor(session), turn: 1, step: 1, signal: new AbortController().signal }, async () => ({ kind: "enter" }));
+		assert.equal(session.snapshotEvents().some((event) => event.type === "compaction/prune"), false);
+	} finally {
+		globalThis.fetch = originalFetch;
+	}
+});
+
 test("disabling the model restores the originals from the log", async () => {
 	const session = staleSession();
 	const originalFetch = globalThis.fetch;
@@ -333,6 +361,35 @@ test("the risk node escalates allow to ask but never loosens a denial", async ()
 	assert.deepEqual(safeTool, { kind: "allow" });
 });
 
+test("unknown registered tool names do not spend Jev budget", async () => {
+	const mounted = host(enabledSection(), createLaunchEnvironmentSnapshot([]), {
+		tools: { get: () => undefined }, credentials: credentialsWith("key")
+	});
+	const decision = await mounted.listeners.get("tools/pre-execute")({
+		name: "powsh", arguments: {}, agent: agentFor(createFakeSession()), callId: "typo", signal: new AbortController().signal
+	}, async () => ({ kind: "allow" }));
+	assert.equal(decision.kind, "allow", "the registry still owns the final unknown-tool decision");
+	const route = mounted.routes.get(testing.ROUTE_PREFIX);
+	const response = { statusCode: 0, setHeader() {}, end(body) { this.body = body; } };
+	await route.handler({ method: "GET", url: testing.STATUS_PATH }, response);
+	assert.equal(JSON.parse(response.body).audit.counters.jevCalls, 0);
+});
+
+test("long ambiguous commands fall back without a false safe audit record", async () => {
+	const mounted = host(enabledSection(), createLaunchEnvironmentSnapshot([]), { llm: llmWith(), credentials: credentialsWith("key") });
+	const decision = await mounted.listeners.get("tools/pre-execute")({
+		name: "pwsh", arguments: { command: "Write-Output '" + "x".repeat(500) + "'; Invoke-Unknown" },
+		agent: agentFor(createFakeSession()), callId: "long", signal: new AbortController().signal
+	}, async () => ({ kind: "allow" }));
+	assert.equal(decision.kind, "allow");
+	const route = mounted.routes.get(testing.ROUTE_PREFIX);
+	const response = { statusCode: 0, setHeader() {}, end(body) { this.body = body; } };
+	await route.handler({ method: "GET", url: testing.STATUS_PATH }, response);
+	const audit = JSON.parse(response.body).audit;
+	assert.equal(audit.counters.riskInsufficientEvidence, 1);
+	assert.equal(audit.counters.riskDecisions, 0);
+});
+
 test("the settings schema fills defaults and rejects mistyped fields", () => {
 	const value = testing.Config({ models: [{ providerId: "p", modelId: "m" }] });
 	assert.equal(value.enabled, false, "the global switch defaults to off");
@@ -376,6 +433,9 @@ test("the Jev audit log records activity and exports as one file", async () => {
 		assert.ok(response.headers["content-disposition"].includes("attachment"), "export downloads as one file");
 		assert.ok(response.headers["content-type"].includes("x-ndjson"));
 		assert.ok(response.body.includes('"kind":"compactionObserved"'), "Jev activity is in the dedicated log");
+		const observed = response.body.split("\n").filter(Boolean).map(JSON.parse).find((entry) => entry.kind === "compactionObserved");
+		assert.ok(Number.isFinite(observed.netRemovedTokens), "observe records estimated net saving after marker cost");
+		assert.ok(observed.jevCalls > 0, "observe records the call cost");
 		assert.ok(response.body.includes('"kind":"activated"'), "the log records which config went live");
 		assert.ok(!response.body.includes("stale message"), "no conversation text ever reaches the log");
 		/* The connectivity test is a Jev call too: it lands in the log and counters. */
