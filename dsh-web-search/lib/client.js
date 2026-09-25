@@ -9,8 +9,9 @@ window.__ModuleLoader__.load({
 		//#region lib/client.js
 		/** Stable Cordis plugin name. */
 		const name = "web-search";
-		/** Slots mount the card; the settings scope and credentials remote back it. */
-		const inject = ["slots", "settingsScope", "remote", "remote.credentials"];
+		/** Slots mount the row's config page; configForms and the credentials
+		 *  remote back it. */
+		const inject = ["slots", "configForms", "remote", "remote.credentials"];
 		/** Card chrome + fields stylesheet, mirroring the shipped PluginCard skin (alias tokens). */
 		const CSS = '.dsh-ws-card{border:.5px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-3);border-radius:16px;list-style:none;transition:border-color .16s,background .16s}' +
 			'.dsh-ws-card:hover{border-color:var(--dsw-alias-label-dimmed)}' +
@@ -23,7 +24,7 @@ window.__ModuleLoader__.load({
 			'.dsh-ws-pending{flex:none;background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-secondary);border-radius:6px;padding:1px 8px;font-size:11px;line-height:1.6;white-space:nowrap}' +
 			'.dsh-ws-chevron{color:var(--dsw-alias-label-tertiary);flex:none;transition:transform .16s;display:inline-flex}' +
 			'.dsh-ws-chevronOpen{transform:rotate(180deg)}' +
-			'.dsh-ws-body{border-top:.5px solid var(--dsw-alias-border-l2);margin:0 16px;padding-bottom:8px}' +
+			'.dsh-ws-body{max-width:720px;display:flex;flex-direction:column;gap:0;padding-bottom:8px}' +
 			'.dsh-ws-readOnly{color:var(--dsw-alias-label-tertiary);margin:12px 0 0;font-size:12px;line-height:1.5}' +
 			'.dsh-ws-footer{border-top:.5px solid var(--dsw-alias-border-l2);justify-content:flex-end;align-items:center;gap:8px;padding:12px 0 4px;display:flex}' +
 			'.dsh-ws-failed{min-width:0;color:var(--dsw-alias-label-error);flex:1;margin:0;font-size:12px;line-height:1.5}' +
@@ -105,23 +106,6 @@ window.__ModuleLoader__.load({
 			expand: "\u5C55\u5F00\u8BBE\u7F6E",
 			collapse: "\u6536\u8D77\u8BBE\u7F6E"
 		};
-		/** Disclosure chevron, styled like the shell's 14px chevron icon. */
-		function Chevron(props) {
-			return React.createElement("svg", {
-				className: props.className,
-				width: 14,
-				height: 14,
-				viewBox: "0 0 14 14",
-				"aria-hidden": "true",
-				fill: "none"
-			}, React.createElement("path", {
-				d: "M3.5 5.25 7 8.75l3.5-3.5",
-				stroke: "currentColor",
-				strokeWidth: 1.3,
-				strokeLinecap: "round",
-				strokeLinejoin: "round"
-			}));
-		}
 		/** Maximum time to wait for the settings mirror to publish a completed write. */
 		const SETTINGS_SETTLE_MS = 250;
 		/** Whether every requested scalar setting is visible in the scope snapshot. */
@@ -157,17 +141,17 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/**
-		 * The web-search card: the shipped PluginCard skin (collapsible card,
-		 * unsaved tag, save/discard footer) around the engine switcher and the
-		 * selected engine's form. Non-secret fields save through the settings
-		 * scope; API keys never ride the settings document and are written through
-		 * the credentials domain.
+		 * The web-search configuration page the bundle's row opens
+		 * (`plugins.row.config`): the engine switcher and the selected engine's
+		 * form with its save/discard footer. `view: 'summary'` renders the
+		 * one-liner the row falls back to. Non-secret fields save through the
+		 * settings form; API keys never ride the settings document and are
+		 * written through the credentials domain.
 		 */
 		function WebSearchCard(props) {
 			const host = props.host;
 			const remote = props.remote;
 			const writable = host.getSnapshot().writable !== false;
-			const [open, setOpen] = React.useState(false);
 			const [section, setSection] = React.useState(() => host.getSnapshot().value ?? {});
 			const [draft, setDraft] = React.useState(() => ({ ...(host.getSnapshot().value ?? {}) }));
 			const [dirty, setDirty] = React.useState(false);
@@ -235,7 +219,6 @@ window.__ModuleLoader__.load({
 						setConfigured(true);
 					}
 					setDirty(false);
-					setOpen(false);
 				} catch {
 					setFailed(true);
 				} finally {
@@ -322,60 +305,50 @@ window.__ModuleLoader__.load({
 				: engine === "model"
 					? [keyField, ...VALUE_FIELDS.model.map(valueField)]
 					: [keyField, ...VALUE_FIELDS.deepseek.map(valueField)];
-			return React.createElement("li", { className: "dsh-ws-card" + (open ? " dsh-ws-cardOpen" : "") },
-				React.createElement("button", {
-					type: "button",
-					className: "dsh-ws-header",
-					"aria-expanded": open,
-					"aria-label": (open ? COPY.collapse : COPY.expand) + ": " + TITLE,
-					onClick: () => setOpen(!open),
-				},
-					React.createElement("span", { className: "dsh-ws-headText" },
-						React.createElement("span", { className: "dsh-ws-name" }, TITLE),
-						React.createElement("span", { className: "dsh-ws-description" }, DESCRIPTION),
-					),
+			/* `summary` renders the row's one-liner; `page` renders the form. The
+			 * page's heading chrome belongs to the plugins page owner. */
+			if (props.view === "summary") return DESCRIPTION;
+			return React.createElement("div", { className: "dsh-ws-body" },
+				!writable ? React.createElement("p", { className: "dsh-ws-readOnly", role: "status" }, COPY.readOnly) : null,
+				engineField,
+				bodyFields,
+				React.createElement("div", { className: "dsh-ws-footer" },
 					dirty ? React.createElement("span", { className: "dsh-ws-pending" }, COPY.unsaved) : null,
-					React.createElement(Chevron, { className: "dsh-ws-chevron" + (open ? " dsh-ws-chevronOpen" : "") }),
+					failed ? React.createElement("p", { className: "dsh-ws-failed", role: "status" }, COPY.saveFailed) : null,
+					React.createElement("button", {
+						type: "button",
+						className: "dsh-ws-discard",
+						disabled: blocked,
+						onClick: discard,
+					}, COPY.discard),
+					React.createElement("button", {
+						type: "button",
+						className: "dsh-ws-save",
+						disabled: blocked,
+						onClick: save,
+					}, saving ? COPY.saving : COPY.save),
 				),
-				open ? React.createElement("div", { className: "dsh-ws-body" },
-					!writable ? React.createElement("p", { className: "dsh-ws-readOnly", role: "status" }, COPY.readOnly) : null,
-					engineField,
-					bodyFields,
-					React.createElement("div", { className: "dsh-ws-footer" },
-						failed ? React.createElement("p", { className: "dsh-ws-failed", role: "status" }, COPY.saveFailed) : null,
-						React.createElement("button", {
-							type: "button",
-							className: "dsh-ws-discard",
-							disabled: blocked,
-							onClick: discard,
-						}, COPY.discard),
-						React.createElement("button", {
-							type: "button",
-							className: "dsh-ws-save",
-							disabled: blocked,
-							onClick: save,
-						}, saving ? COPY.saving : COPY.save),
-					),
-				) : null,
 			);
 		}
 		/**
-		 * Client plugin body: the stylesheet plus the settings card keyed on the
-		 * `web-search` settings namespace, so the plugins tab pairs the two.
+		 * Client plugin body: the stylesheet plus the configuration page for the
+		 * bundle's `web-search` row, keyed `<package>#<row id>` as the
+		 * `plugins.row.config` slot contract spells it, mounted while the Host
+		 * serves the `web-search` settings namespace.
 		 * @param ctx - client root context.
 		 */
 		function apply(ctx) {
-			const host = ctx.settingsScope.bind({ namespace: name });
+			const host = ctx.configForms.get(name);
 			ctx.effect(() => {
 				const tag = document.createElement("style");
 				tag.textContent = CSS;
 				document.head.append(tag);
 				return () => tag.remove();
 			}, "web-search: styles");
-			ctx.slots.inject("settings.plugin.item", () => ctx.slots.register(
-				{ name: "settings.plugin.item", key: name },
-				() => React.createElement(WebSearchCard, { host, remote: ctx.remote }),
-			));
+			ctx.effect(() => ctx.configForms.whileServed([name], () => ctx.slots.inject("plugins.row.config", () => ctx.slots.register(
+				{ name: "plugins.row.config", key: "dsh-web-search#web-search" },
+				(props) => React.createElement(WebSearchCard, { ...props, host, remote: ctx.remote }),
+			))), "web-search: config page");
 		}
 		//#endregion
 		exports.apply = apply;

@@ -1,7 +1,7 @@
 # dsh-web-search
 
 **中文** · 免费网页搜索插件：为 DSH 的 `web_search` 工具提供**可切换的多引擎搜索后端**，
-在"设置 → 插件 → 插件配置 → 网页搜索"卡片中一键更换搜索工具，即时生效、无需重启。
+在"设置 → 插件 → dsh-web-search → 网页搜索（配置）"页面中一键更换搜索工具，即时生效、无需重启。
 不修改 DSH 本体，卸载即恢复内置行为。
 
 ## 搜索工具（三选一）
@@ -37,7 +37,7 @@ dsh --profile web --dump-config
 
 ## 使用
 
-1. 打开 DSH 设置 → 插件 → 插件配置 → **网页搜索**卡片；
+1. 打开 DSH 设置 → 插件 → **dsh-web-search**，点"网页搜索"行的"配置"；
 2. 选择搜索工具（Tavily / 模型自带联网 / DeepSeek 官方），填入对应 API Key（可选）与参数，保存；
 3. 会话中的 `web_search` 即走所选后端，切换即时生效。
 
@@ -63,8 +63,8 @@ node --test
 dsh-web-search/
 ├── patch.yml              # loader 组合补丁（insert / disabled / config 覆盖）
 ├── lib/
-│   ├── index.js           # 宿主半边：settings 段 + 注册搜索提供方
-│   ├── client.js          # 浏览器半边：settings.plugin.item「网页搜索」卡片
+│   ├── index.js           # 宿主半边：Config 设置表单 + 注册搜索提供方
+│   ├── client.js          # 浏览器半边：plugins.row.config「网页搜索」配置页
 │   ├── dispatch.js        # 按设置分发到所选引擎（每次搜索入口快照配置）
 │   ├── options.js         # 设置归一化 + 可用性检查
 │   ├── http.js            # JSON POST / 取消分类

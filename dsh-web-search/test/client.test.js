@@ -64,7 +64,13 @@ async function mount(remote, mutate) {
 			}
 		};
 		plugin.apply({
-			settingsScope: { bind: () => host },
+			configForms: {
+				get: () => host,
+				whileServed: (_namespaces, register) => {
+					const off = register();
+					return () => off?.();
+				}
+			},
 			remote,
 			effect: (effect) => effect(),
 			slots: {
@@ -96,7 +102,6 @@ test("API key alone enables save and waits for credential persistence", async ()
 		})
 	} });
 	let tree = mounted.render();
-	find(tree, (node) => node.props.className === "dsh-ws-header")[0].props.onClick();
 	tree = mounted.render();
 	const key = find(tree, (node) => node.props.type === "password")[0];
 	key.props.onChange({ target: { value: "secret" } });
@@ -119,7 +124,6 @@ test("engine selection remains a discardable draft", async () => {
 		set: async () => ({ ok: true, value: undefined })
 	} });
 	let tree = mounted.render();
-	find(tree, (node) => node.props.className === "dsh-ws-header")[0].props.onClick();
 	tree = mounted.render();
 	const engineButtons = find(tree, (node) => typeof node.props.className === "string" && node.props.className.startsWith("dsh-ws-segbtn"));
 	engineButtons[1].props.onClick();
@@ -137,7 +141,6 @@ test("credential refusal stays open and reports a save failure", async () => {
 		set: async () => ({ ok: false, error: { message: "denied" } })
 	} });
 	let tree = mounted.render();
-	find(tree, (node) => node.props.className === "dsh-ws-header")[0].props.onClick();
 	tree = mounted.render();
 	find(tree, (node) => node.props.type === "password")[0].props.onChange({ target: { value: "secret" } });
 	tree = mounted.render();
@@ -155,7 +158,6 @@ test("a delayed settings publication does not report a false failure", async () 
 		setTimeout(() => publish(ops), 10);
 	});
 	let tree = mounted.render();
-	find(tree, (node) => node.props.className === "dsh-ws-header")[0].props.onClick();
 	tree = mounted.render();
 	find(tree, (node) => node.children.join("") === "advanced")[0].props.onClick();
 	tree = mounted.render();
@@ -170,7 +172,6 @@ test("settings refusal is detected instead of silently closing", async () => {
 		set: async () => ({ ok: true, value: undefined })
 	} }, async () => {});
 	let tree = mounted.render();
-	find(tree, (node) => node.props.className === "dsh-ws-header")[0].props.onClick();
 	tree = mounted.render();
 	find(tree, (node) => node.children.join("") === "advanced")[0].props.onClick();
 	tree = mounted.render();

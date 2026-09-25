@@ -7,6 +7,18 @@ function response(payload) {
 	return { ok: true, status: 200, json: async () => payload };
 }
 
+/** Every Config field of the host plugin is volatile: a readonly `Ref.get()`. */
+const CONFIG_FIELDS = [
+	"engine", "tavilyApiKey", "tavilyApiKeyEnv", "tavilySearchDepth",
+	"modelApiKey", "modelApiKeyEnv", "modelBaseUrl", "modelId",
+	"deepseekApiKey", "deepseekApiKeyEnv", "deepseekBaseUrl", "deepseekMaxUses"
+];
+
+/** Wrap a plain section the way the loader hands volatile fields to `apply`. */
+function volatileConfig(section) {
+	return Object.fromEntries(CONFIG_FIELDS.map((field) => [field, { get: () => section[field] }]));
+}
+
 function host(config, environment, agent) {
 	let provider;
 	const ctx = {
@@ -22,7 +34,7 @@ function host(config, environment, agent) {
 			return undefined;
 		}
 	};
-	apply(ctx, config);
+	apply(ctx, volatileConfig(config));
 	return () => provider;
 }
 

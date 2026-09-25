@@ -2,10 +2,10 @@
  * dsh-web-search — host half.
  *
  * Registers ONE switchable search provider (`web-search`) into the `ctx.web`
- * seam and the durable `web-search` settings section behind it. The engine
+ * seam and the durable `web-search` settings form behind it. The engine
  * (Tavily free tier / model-native web search / DeepSeek official) is re-read
- * from the live settings source at every search entry, so switching in
- * Settings > Plugins > Web search takes effect without a restart.
+ * from the live settings source at every search entry, so switching in the
+ * bundle's configuration page takes effect without a restart.
  *
  * Runtime imports explicitly include the public web and launch-environment
  * contracts as bundle-local dependencies, so a `link:` installation resolves
@@ -37,20 +37,25 @@ const DEFAULT_KEY_REFS = {
 	deepseek: "DEEPSEEK_API_KEY"
 };
 
-/** Durable settings schema: engine selection plus per-engine options. */
+/**
+ * Durable settings schema: engine selection plus per-engine options. Every
+ * field is volatile: the settings form only edits volatile fields, and each
+ * read goes through the live reference, so a saved switch reaches the running
+ * provider without a remount.
+ */
 const Config = z.object({
-	engine: z.union(["tavily", "model", "deepseek"]).default(DEFAULTS.engine),
-	tavilyApiKey: z.string().role("secret"),
-	tavilyApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.tavily),
-	tavilySearchDepth: z.union(["basic", "advanced"]).default(DEFAULTS.tavilySearchDepth),
-	modelApiKey: z.string().role("secret"),
-	modelApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.model),
-	modelBaseUrl: z.string().default(DEFAULTS.modelBaseUrl),
-	modelId: z.string().default(DEFAULTS.modelId),
-	deepseekApiKey: z.string().role("secret"),
-	deepseekApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.deepseek),
-	deepseekBaseUrl: z.string().default(DEFAULTS.deepseekBaseUrl),
-	deepseekMaxUses: z.number().step(1).min(1).default(DEFAULTS.deepseekMaxUses)
+	engine: z.union(["tavily", "model", "deepseek"]).default(DEFAULTS.engine).volatile(),
+	tavilyApiKey: z.string().role("secret").volatile(),
+	tavilyApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.tavily).volatile(),
+	tavilySearchDepth: z.union(["basic", "advanced"]).default(DEFAULTS.tavilySearchDepth).volatile(),
+	modelApiKey: z.string().role("secret").volatile(),
+	modelApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.model).volatile(),
+	modelBaseUrl: z.string().default(DEFAULTS.modelBaseUrl).volatile(),
+	modelId: z.string().default(DEFAULTS.modelId).volatile(),
+	deepseekApiKey: z.string().role("secret").volatile(),
+	deepseekApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.deepseek).volatile(),
+	deepseekBaseUrl: z.string().default(DEFAULTS.deepseekBaseUrl).volatile(),
+	deepseekMaxUses: z.number().step(1).min(1).default(DEFAULTS.deepseekMaxUses).volatile()
 });
 
 /**
@@ -72,12 +77,29 @@ function makeKeyResolver(ctx, envName) {
 }
 
 /**
- * Mount the switchable search provider and its settings section.
+ * Mount the switchable search provider and its settings form.
  * @param {object} ctx - Host plugin context.
- * @param {object} config - the resolved composition entry (the section's base layer).
+ * @param {object} config - the resolved composition entry; volatile fields are
+ * live references, so `current()` snapshots the section per operation.
  */
 function apply(ctx, config) {
-	let current = () => config;
+	/* Volatile Config fields arrive as readonly references (`Ref.get()`); the
+	 * loader commits a settings write into them without remounting this plugin,
+	 * which is what keeps the engine switch restart-free. */
+	const current = () => ({
+		engine: config.engine.get(),
+		tavilyApiKey: config.tavilyApiKey.get(),
+		tavilyApiKeyEnv: config.tavilyApiKeyEnv.get(),
+		tavilySearchDepth: config.tavilySearchDepth.get(),
+		modelApiKey: config.modelApiKey.get(),
+		modelApiKeyEnv: config.modelApiKeyEnv.get(),
+		modelBaseUrl: config.modelBaseUrl.get(),
+		modelId: config.modelId.get(),
+		deepseekApiKey: config.deepseekApiKey.get(),
+		deepseekApiKeyEnv: config.deepseekApiKeyEnv.get(),
+		deepseekBaseUrl: config.deepseekBaseUrl.get(),
+		deepseekMaxUses: config.deepseekMaxUses.get()
+	});
 	const resolveKeys = {
 		tavily: makeKeyResolver(ctx, () => current().tavilyApiKeyEnv ?? DEFAULT_KEY_REFS.tavily),
 		model: makeKeyResolver(ctx, () => current().modelApiKeyEnv ?? DEFAULT_KEY_REFS.model),
@@ -90,13 +112,10 @@ function apply(ctx, config) {
 		};
 		return normalized;
 	};
-	ctx.inject(["settings"], (settingsCtx) => {
-		settingsCtx.settings.installSection(ctx, WEB_SEARCH_SETTINGS_NAMESPACE, Config, config, {
-			setSource: (source) => {
-				current = source;
-			},
-			onChange: () => {}
-		});
+	/* The bundle renders its own configuration page (plugins.row.config), so the
+	 * automatically generated config page for this entry is suppressed. */
+	ctx.inject(["settings"], (child) => {
+		child.effect(() => child.settings.configure({ auto: false }, ctx.fiber));
 	});
 	const engines = {
 		tavily: searchTavily,
