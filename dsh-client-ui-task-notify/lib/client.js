@@ -22,12 +22,18 @@ window.__ModuleLoader__.load({
 			'.dsh-notify-segbtn.on{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-overlay,#fff)}';
 		/** Stable Cordis plugin name. */
 		const name = "ui-task-notify";
-		/** The session list store carries running state; slots and the settings
-		 *  scope carry the settings seat and the durable toggle storage. */
-		const inject = ["slots", "sessions", "settingsScope", "remote"];
+		/** The session list store carries running state; slots carry the settings
+		 *  seat, configForms the durable toggle storage, uiWorkspace the
+		 *  notification click-through. */
+		const inject = ["slots", "sessions", "configForms", "uiWorkspace"];
 		/** Main sessions only: subagent children carry origin/parentId on their summary. */
 		function isMainSession(entry) {
 			return entry !== void 0 && entry.origin === void 0 && entry.parentId === void 0;
+		}
+		/** The session the main view currently shows: the list marks it by
+		 *  main-view retention, not by a `current` field. */
+		function shownInView(list) {
+			return Object.values(list.byId).find((row) => (row?.retainedBy?.mainView ?? 0) > 0)?.id;
 		}
 		/** Off the DSH interface: tab hidden, minimized, or another window focused. */
 		function offScreen() {
@@ -83,7 +89,7 @@ window.__ModuleLoader__.load({
 		 * segment also previews it — the click doubles as the user gesture that
 		 * unlocks Web Audio for later background playback), and a hint when the
 		 * browser denied notification permission. Displayed values follow the
-		 * durable settings section through the bound scope, never the click echo.
+		 * durable settings form through the bound configuration scope, never the click echo.
 		 */
 		function SettingsPage(props) {
 			const host = props.host;
@@ -149,7 +155,7 @@ window.__ModuleLoader__.load({
 		 * @param ctx - client root context.
 		 */
 		function apply(ctx) {
-			const host = ctx.settingsScope.bind({ namespace: name });
+			const host = ctx.configForms.get(name);
 			/** Seed from the durable section (undefined while the read is in flight → off). */
 			const enabled = { value: host.getSnapshot().value?.enabled === true };
 			/** Last-observed running bit per session; the true→false edge arms a notification. */
@@ -179,7 +185,7 @@ window.__ModuleLoader__.load({
 						if (!isMainSession(entry)) continue;
 						if (!enabled.value) continue;
 						if (typeof Notification === "undefined" || Notification.permission !== "granted") continue;
-						if (list.current === id && !offScreen()) continue;
+						if (shownInView(list) === id && !offScreen()) continue;
 						const sound = host.getSnapshot().value?.sound ?? "system";
 						const notification = new Notification("\u4EFB\u52A1\u5B8C\u6210", {
 							body: (entry.displayTitle || id) + " \u5DF2\u5B8C\u6210\u5F53\u524D\u4EFB\u52A1",
@@ -189,7 +195,7 @@ window.__ModuleLoader__.load({
 						});
 						if (sound !== "system" && sound !== "silent") playSound(sound);
 						notification.onclick = () => {
-							try { sessions.open(id); } catch (error) { console.error("ui-task-notify: open session failed", error); }
+							try { ctx.uiWorkspace.openSession(id); } catch (error) { console.error("ui-task-notify: open session failed", error); }
 							window.focus();
 						};
 					}
