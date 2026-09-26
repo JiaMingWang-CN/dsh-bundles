@@ -333,8 +333,10 @@ window.__ModuleLoader__.load({
 		/**
 		 * Client plugin body: the stylesheet plus the configuration page for the
 		 * bundle's `web-search` row, keyed `<package>#<row id>` as the
-		 * `plugins.row.config` slot contract spells it, mounted while the Host
-		 * serves the `web-search` settings namespace.
+		 * `plugins.row.config` slot contract spells it, AND a `settings.section`
+		 * page so the Settings sidebar lists 网页搜索 beside the sibling bundle
+		 * pages. Both render the same form over the `web-search` settings
+		 * namespace and mount while the Host serves it.
 		 * @param ctx - client root context.
 		 */
 		function apply(ctx) {
@@ -345,10 +347,20 @@ window.__ModuleLoader__.load({
 				document.head.append(tag);
 				return () => tag.remove();
 			}, "web-search: styles");
-			ctx.effect(() => ctx.configForms.whileServed([name], () => ctx.slots.inject("plugins.row.config", () => ctx.slots.register(
-				{ name: "plugins.row.config", key: "dsh-web-search#web-search" },
-				(props) => React.createElement(WebSearchCard, { ...props, host, remote: ctx.remote }),
-			))), "web-search: config page");
+			ctx.effect(() => ctx.configForms.whileServed([name], () => {
+				const offRow = ctx.slots.inject("plugins.row.config", () => ctx.slots.register(
+					{ name: "plugins.row.config", key: "dsh-web-search#web-search" },
+					(props) => React.createElement(WebSearchCard, { ...props, host, remote: ctx.remote }),
+				));
+				const offSection = ctx.slots.inject("settings.section", () => ctx.slots.register(
+					{ name: "settings.section", id: "web-search", order: 32, label: "网页搜索" },
+					() => React.createElement(WebSearchCard, { view: "page", host, remote: ctx.remote }),
+				));
+				return () => {
+					offRow();
+					offSection();
+				};
+			}), "web-search: config page");
 		}
 		//#endregion
 		exports.apply = apply;

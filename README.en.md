@@ -51,7 +51,7 @@ Both servers launch through `npx -y`; no global npm package installation is requ
 
 ### Web search
 
-`dsh-web-search` gives the `web_search` tool a switchable search backend, chosen from the Web search row's Configure page under Settings > Plugins > dsh-web-search and applied live. DSH itself is never modified; uninstalling restores the shipped behavior.
+`dsh-web-search` gives the `web_search` tool a switchable search backend, chosen from the Web search page in the Settings sidebar and applied live. DSH itself is never modified; uninstalling restores the shipped behavior.
 
 - Tavily (default): free tier of 1000 searches/month, LLM-optimized results;
 - Model-native web search: MiMo server-side `web_search`, billed per search round (about ¥16 per 1000 plus token fees; activate the "Web Search plugin" in the MiMo console);
@@ -154,7 +154,7 @@ Host-side changes require a DSH restart. Client-only UI changes require only a p
 ### Switch the web search tool
 
 1. Open DSH Settings;
-2. Go to Plugins > dsh-web-search and open Configure on the Web search row;
+2. Go to Web search in the settings sidebar;
 3. Pick the search tool (Tavily / model-native / DeepSeek official), enter the API key, and save.
 
 Switching takes effect immediately with no restart; per-engine setup and billing notes live in `dsh-web-search/README.md`.
