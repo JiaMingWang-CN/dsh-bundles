@@ -43,10 +43,10 @@ dsh --profile web --dump-config
 
 ## 行为细节
 
-- **密钥安全**：API Key 经 credentials 域写入（`$DSH_HOME/.credentials.yaml`），不写入 `settings.yaml`、界面不回显明文；留空保持当前密钥。解析顺序：设置中的明文字段 → credentials/launch-environment 中的凭证引用（默认 `TAVILY_API_KEY` / `MIMO1_API_KEY` / `DEEPSEEK_API_KEY`，可在设置命名空间中改名）。
+- **密钥安全**：API Key 经 credentials 域写入（`$DSH_HOME/.credentials.yaml`），不写入 `settings.yaml`、界面不回显明文；留空保持当前密钥。解析顺序：设置中的明文字段 → credentials/launch-environment 中的凭证引用（默认 `TAVILY_API_KEY` / `MIMO1_API_KEY` / `DEEPSEEK_API_KEY`，可在配置页的凭证引用字段中改名）。
 - **结果契约**：适配器只解析结构化结果（Tavily `results`/`answer`、MiMo `url_citation` 注解与 `search_results`、DeepSeek `web_search_tool_result` 块），绝不从模型文本里抓 URL；来源数上限（默认 8）由 `dsh-tool-web`/web 接缝截断。
 - **错误码**：`WEB_PROVIDER_CREDENTIAL_MISSING`（缺密钥/密钥被拒）、`WEB_PROVIDER_ERROR`（传输/配额/响应不可解析）、`WEB_ABORTED`（取消）；配额与端点类错误附带可操作指引。
-- **模型引擎成本控制**：请求固定 `max_keyword: 1`（MiMo 按关键词次数计费）；DeepSeek 引擎沿用 `max_uses`（默认 5，卡片可调），并在发起请求前写入不含凭证的 `web/deepseek-search-llm-request` 会话审计事件。
+- **模型引擎成本控制**：请求固定 `max_keyword: 1`（MiMo 按关键词次数计费）；DeepSeek 引擎沿用 `max_uses`（默认 5，配置页可调），并在发起请求前写入不含凭证的 `web/deepseek-search-llm-request` 会话审计事件。
 - **零修改 DSH 本体**：生效完全通过 loader 组合补丁（`patch.yml`：插入本插件行、停用 `web-search-deepseek` 行、把 `web` 行 `searchProvider` 指到本插件）；卸载即完整还原。
 
 ## 本地开发
