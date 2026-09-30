@@ -9,7 +9,7 @@
  * the disabled path reads no key, builds no Jev client, serializes no context,
  * and leaves every request, event and decision exactly native.
  *
- * Integration boundaries (verified against dsh 0.1.5-rc.2, see
+ * Integration boundaries (verified against dsh 0.1.5-rc.2 and 0.2.0-rc.2, see
  * `docs/jev-stage1-extension-map.md`):
  * - compaction commits through the session's model-free replacement protocol
  *   (`compaction/prune` + one `user/message` surface replacement), so originals
@@ -37,7 +37,7 @@ const name = rules.NAMESPACE;
 const inject = ["webServer"];
 
 /** Plugin version reported by the status surface. */
-const PLUGIN_VERSION = "0.1.0";
+const PLUGIN_VERSION = "0.1.1";
 
 /** Largest accepted JSON control body. */
 const MAX_BODY_BYTES = 4096;

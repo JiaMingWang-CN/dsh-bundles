@@ -19,7 +19,7 @@ export const DEEPSEEK_API_VERSION = "2023-06-01";
 export const DEEPSEEK_MAX_TOKENS = 4096;
 
 /** Attribution header sent on every request. */
-const USER_AGENT = "deepseek-harness-dsh-web-search/0.1.0";
+const USER_AGENT = "deepseek-harness-dsh-web-search/0.2.0";
 
 /**
  * Build the Messages request for one forced web search.
