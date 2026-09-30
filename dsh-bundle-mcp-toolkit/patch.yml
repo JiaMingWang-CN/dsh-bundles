@@ -1,9 +1,10 @@
 # MCP servers: each entry launches one external MCP server over stdio and
 # exposes its tools as mcp__<serverName>__<tool>. codegraph answers queries
 # for ANY project that has a .codegraph/ index via its per-call `projectPath`
-# argument. Commands use `npx -y` so no global install is required
-# (first launch downloads the package; codegraph requires a .codegraph/
-# index in the queried project — create one with `codegraph init`).
+# argument. codegraph/context7 use `npx -y` and browser-use uses `uvx`, so
+# no global install is required (first launch downloads the package;
+# codegraph requires a .codegraph/ index in the queried project — create
+# one with `codegraph init`).
 - insert:
     - id: mcp-codegraph
       name: '@deepseek-ai/dsh-mcp-client'
@@ -20,3 +21,10 @@
         transport: stdio
         command: npx
         args: ['-y', '@upstash/context7-mcp']
+    - id: mcp-browser-use
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: browser-use
+        transport: stdio
+        command: uvx
+        args: ['--python', '3.12', 'browser-use@latest', '--cli-mcp']
