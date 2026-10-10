@@ -4,7 +4,10 @@
 # argument. codegraph/context7 use `npx -y` and browser-use uses `uvx`, so
 # no global install is required (first launch downloads the package;
 # codegraph requires a .codegraph/ index in the queried project — create
-# one with `codegraph init`).
+# one with `codegraph init`). Versions are pinned so a launch never re-resolves
+# "latest" over the network and an upstream release cannot break startup; bump
+# them deliberately. The CodeGraph package is the scoped @colbymchenry/codegraph
+# (the unscoped `codegraph` on npm is an unrelated package).
 - insert:
     - id: mcp-codegraph
       name: '@deepseek-ai/dsh-mcp-client'
@@ -12,7 +15,7 @@
         serverName: codegraph
         transport: stdio
         command: npx
-        args: ['-y', 'codegraph', 'serve', '--mcp']
+        args: ['-y', '@colbymchenry/codegraph@1.6.2', 'serve', '--mcp']
         toolCallTimeoutMs: 120000
     - id: mcp-context7
       name: '@deepseek-ai/dsh-mcp-client'
@@ -20,11 +23,11 @@
         serverName: context7
         transport: stdio
         command: npx
-        args: ['-y', '@upstash/context7-mcp']
+        args: ['-y', '@upstash/context7-mcp@4.3.0']
     - id: mcp-browser-use
       name: '@deepseek-ai/dsh-mcp-client'
       config:
         serverName: browser-use
         transport: stdio
         command: uvx
-        args: ['--python', '3.12', 'browser-use@latest', '--cli-mcp']
+        args: ['--python', '3.12', 'browser-use==0.13.11', '--cli-mcp']

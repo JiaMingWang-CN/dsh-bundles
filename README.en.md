@@ -164,7 +164,7 @@ codegraph init -i
 
 ### The MCP server is slow on first launch
 
-CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run downloads the package; later runs use the local cache.
+CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run downloads the package; later runs use the local cache. All three versions are pinned in `dsh-bundle-mcp-toolkit/patch.yml` (CodeGraph `@colbymchenry/codegraph@1.6.2`, Context7 `@upstash/context7-mcp@4.3.0`, Browser-Use `browser-use==0.13.11`), so startup never re-resolves the latest release over the network; edit the versions there to upgrade.
 
 ### A plugin did not change after editing
 

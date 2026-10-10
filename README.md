@@ -165,7 +165,7 @@ codegraph init -i
 
 ### MCP server 第一次启动很慢
 
-CodeGraph 与 Context7 使用 `npx -y`，Browser-Use 使用 `uvx`。第一次运行都需要下载包，后续会使用本机缓存。
+CodeGraph 与 Context7 使用 `npx -y`，Browser-Use 使用 `uvx`。第一次运行都需要下载包，后续会使用本机缓存。三者的版本都固定在 `dsh-bundle-mcp-toolkit/patch.yml` 中（CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.3.0`、Browser-Use `browser-use==0.13.11`），启动时不会重新联网解析最新版本；升级时修改该文件中的版本号。
 
 ### 修改插件后页面没有变化
 
