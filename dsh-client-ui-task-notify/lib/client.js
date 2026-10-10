@@ -199,7 +199,8 @@ window.__ModuleLoader__.load({
 							window.focus();
 						};
 					}
-					for (const id of [...prevRunning.keys()]) if (!list.ids.includes(id)) prevRunning.delete(id);
+					const live = new Set(list.ids);
+					for (const id of prevRunning.keys()) if (!live.has(id)) prevRunning.delete(id);
 				});
 			}, "ui-task-notify: completion watcher");
 			ctx.slots.inject("settings.section", () => ctx.slots.register(
