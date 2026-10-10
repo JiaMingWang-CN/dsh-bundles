@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, cross-session token analytics, a CodeGraph + Context7 + Browser-Use MCP toolkit, a free multi-engine web search provider, a WeChat channel, and a Jev enhancement layer.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 + Browser-Use MCP toolkit, and a free multi-engine web search provider.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -30,17 +30,6 @@ Each directory is an independently installable bundle. Install only what you nee
 - Persists the enabled state and selected sound in DSH settings;
 - Custom sounds are synthesized with Web Audio and follow system volume.
 
-### Usage analytics
-
-`dsh-client-ui-usage-stats` reads local DSH session logs and builds a cross-session token dashboard.
-
-- Browse by provider, model, or session;
-- Separately displays input, cache-read, cache-write, output, and reasoning tokens;
-- Reasoning tokens are already included in output and are not counted twice;
-- Includes both main and sub-agent sessions;
-- Reads logs only: no model calls and no cost estimates;
-- Caches by log size and modification time, avoiding full history decoding on repeat opens.
-
 ### MCP toolkit
 
 `dsh-bundle-mcp-toolkit` registers three stdio MCP servers with DSH:
@@ -60,24 +49,6 @@ CodeGraph and Context7 launch through `npx -y` and Browser-Use through `uvx`; no
 - DeepSeek official: the built-in search route, billed on the DeepSeek account;
 - API keys are stored through the credentials domain, never as `settings.yaml` plaintext.
 
-### WeChat channel
-
-`dsh-channel-weixin` lets you drive DSH with text messages from WeChat: after linking by QR code, text messages sent from WeChat are submitted as tasks to the bound DSH session, and results are replied back to WeChat paragraph by paragraph.
-
-- Standalone implementation: does not depend on, start, or copy code from OpenClaw; zero third-party runtime dependencies (Node built-ins only);
-- Its own settings entry (`order: 35`, right after "Usage statistics") showing link status, the bound session and directory, and queue/scheduled-task counts;
-- Commands (send `/help` in WeChat): `/new`, `/sessions`, `/use`, `/cwd`, `/stop`, `/queue`, `/schedule`, `/agents`, `/agent`, `/models`, `/model`, `/usage`, `/search`;
-- Boundaries: single account, private chats from the QR-linked user only; text only; WeChat tasks run with full permissions; scheduled triggers missed while DSH is down are flagged but not re-run; proactive push is subject to WeChat server-side limits and must be confirmed in real integration testing.
-
-### Jev enhancement
-
-`dsh-jev-enhancement` is a model-agnostic Jev (TypeSafe System One) enhancement layer: context filtering and structured decision-making enabled per exact `provider/model`, configured from the "Jev 增强" settings page. DSH itself is never modified; native compaction, retries, and approvals always remain the fallback path, and everything is disabled globally by default.
-
-- Context Compaction: semantics-based **original-text filtering** (not summarization); the original text stays in the session log and can be restored with one click;
-- Decision Assistance: three decision nodes (fault classification, route selection, risk judgment) that can only adopt suggestions inside a whitelist and only tighten permissions, never loosen them;
-- Hard protection for non-reproducible content, failure fallback, call budgets, and a circuit breaker; after disabling, context is rebuilt automatically from the original session material;
-- Enabling it may send context snippets to TypeSafe; keys are stored via the credentials domain and the audit log never records original text.
-
 ## Quick install
 
 ### Requirements
@@ -95,20 +66,11 @@ Run the commands for the bundles you want:
 # Task-completion notifications
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-task-notify"
 
-# Token usage analytics
-dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-usage-stats"
-
 # CodeGraph + Context7 + Browser-Use MCP toolkit
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
 
 # Free multi-engine web search (Tavily / model-native / DeepSeek switchable)
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
-
-# WeChat channel
-dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-channel-weixin"
-
-# Jev enhancement (disabled by default; enable it explicitly in Settings)
-dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-jev-enhancement"
 ```
 
 Confirm that the bundles are present in the web profile:
@@ -152,14 +114,6 @@ Browser-Use launches through `uvx` and downloads its Python package on first run
 
 A notification is sent only when a main session transitions from running to complete while the page is not focused.
 
-### View token usage
-
-1. Open DSH Settings;
-2. Select Usage statistics;
-3. Switch between Provider, Model, and Session views.
-
-Host-side changes require a DSH restart. Client-only UI changes require only a page refresh.
-
 ### Switch the web search tool
 
 1. Open DSH Settings;
@@ -187,16 +141,14 @@ dsh plugin --profile web update
 Update one plugin:
 
 ```powershell
-dsh plugin --profile web update dsh-client-ui-usage-stats
+dsh plugin --profile web update dsh-web-search
 ```
 
 Remove these bundles:
 
 ```powershell
-dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-client-ui-usage-stats dsh-bundle-mcp-toolkit dsh-channel-weixin dsh-web-search dsh-jev-enhancement
+dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-bundle-mcp-toolkit dsh-web-search
 ```
-
-Uninstalling the WeChat channel does **not** delete saved credentials and binding state (`$DSH_HOME/storages/channel-weixin/`). To wipe everything, log out from the settings page first, or delete that directory manually.
 
 Restart DSH after updating or uninstalling.
 
@@ -214,7 +166,7 @@ codegraph init -i
 
 CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run downloads the package; later runs use the local cache.
 
-### Usage analytics did not change after editing
+### A plugin did not change after editing
 
 - Changed `lib/client.js`: refresh the browser;
 - Changed `lib/index.js`: restart DSH, then refresh.
@@ -234,26 +186,14 @@ Clone the repository and install each bundle by local path:
 
 ```powershell
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-usage-stats
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-channel-weixin
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-jev-enhancement
 ```
 
-Run the tests (usage analytics, the WeChat channel, web search, and the Jev enhancement all ship `node --test` suites):
+Run the tests (web search ships a `node --test` suite):
 
 ```powershell
-cd dsh-client-ui-usage-stats
-npm test
-
-cd ..\dsh-web-search
-npm test
-
-cd ..\dsh-channel-weixin
-npm test
-
-cd ..\dsh-jev-enhancement
+cd dsh-web-search
 npm test
 ```
 
@@ -262,9 +202,6 @@ Repository layout:
 ```text
 dsh-bundles/
 ├── dsh-client-ui-task-notify/
-├── dsh-client-ui-usage-stats/
 ├── dsh-bundle-mcp-toolkit/
-├── dsh-channel-weixin/
-├── dsh-web-search/
-└── dsh-jev-enhancement/
+└── dsh-web-search/
 ```
