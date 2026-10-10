@@ -97,3 +97,33 @@ export async function readJson(response, signal, errors) {
 		throw errors.provider(`web search returned an unprocessable response body: ${String(error)}`, "WEB_PROVIDER_ERROR", error);
 	}
 }
+
+/**
+ * Build the missing-API-key failure every engine raises before dispatch.
+ * @param {string} label - the engine's display name in the message.
+ * @param {string} envName - the default credential reference.
+ * @param {string} literalField - the literal-key config field.
+ * @param {{ provider: (m: string, c?: string, cause?: unknown) => Error }} errors - error factory pair.
+ * @returns {Error} the coded error.
+ */
+export function missingKeyError(label, envName, literalField, errors) {
+	return errors.provider(`${label} has no API key; store one through Settings > Plugins > Plugin configuration > Web search (enter the key and save), export it as ${envName} in the launching environment, or set a literal "${literalField}" in the web-search config`, "WEB_PROVIDER_CREDENTIAL_MISSING");
+}
+
+/**
+ * Read a non-2xx body for an error message, as a `: <text>` suffix ("" when
+ * the body is unreadable or carries no message).
+ * @param {Response} response - the raw non-2xx response.
+ * @param {AbortSignal | undefined} signal - the caller's cancellation signal.
+ * @param {{ provider: (m: string, c?: string, cause?: unknown) => Error, aborted: (cause?: unknown) => Error }} errors - error factory pair.
+ * @param {(payload: any) => unknown} pick - extracts the engine's message field.
+ * @returns {Promise<string>} the detail suffix.
+ */
+export async function readErrorDetail(response, signal, errors, pick) {
+	try {
+		const text = pick(await readJson(response, signal, errors));
+		return text != null && String(text).length > 0 ? `: ${String(text)}` : "";
+	} catch {
+		return "";
+	}
+}

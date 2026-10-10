@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { plainErrors } from "../lib/errors.js";
+import { webErrors } from "../lib/errors.js";
 import { DispatchProvider, WEB_SEARCH_PROVIDER_ID } from "../lib/dispatch.js";
 import { normalizeSection } from "../lib/options.js";
 
 /** Build deps whose fetch records calls instead of dispatching. */
 function deps() {
-	return { fetch: async () => { throw new Error("unused"); }, errors: plainErrors };
+	return { fetch: async () => { throw new Error("unused"); }, errors: webErrors };
 }
 
 test("DispatchProvider ids itself and dispatches to the selected engine", async () => {

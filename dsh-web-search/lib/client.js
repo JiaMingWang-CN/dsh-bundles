@@ -86,6 +86,11 @@ window.__ModuleLoader__.load({
 		};
 		/** Numeric fields that reject non-whole numbers. */
 		const NUMERIC_FIELDS = new Set(["deepseekMaxUses"]);
+		/** A filled numeric field that is not a positive whole number. */
+		function isInvalidNumber(field, value) {
+			if (!NUMERIC_FIELDS.has(field) || value === undefined || value === "") return false;
+			return !Number.isInteger(Number(value)) || Number(value) < 1;
+		}
 		/** Header copy. */
 		const TITLE = "\u7F51\u9875\u641C\u7D22";
 		const DESCRIPTION = "\u4E3A web_search \u5DE5\u5177\u9009\u62E9\u641C\u7D22\u540E\u7AEF\uFF1B\u5207\u6362\u5373\u65F6\u751F\u6548\uFF0C\u65E0\u9700\u91CD\u542F\u3002";
@@ -143,8 +148,7 @@ window.__ModuleLoader__.load({
 		/**
 		 * The web-search configuration page the bundle's row opens
 		 * (`plugins.row.config`): the engine switcher and the selected engine's
-		 * form with its save/discard footer. `view: 'summary'` renders the
-		 * one-liner the row falls back to. Non-secret fields save through the
+		 * form with its save/discard footer. Non-secret fields save through the
 		 * settings form; API keys never ride the settings document and are
 		 * written through the credentials domain.
 		 */
@@ -165,19 +169,21 @@ window.__ModuleLoader__.load({
 				const declared = section[spec.field];
 				return typeof declared === "string" && declared.length > 0 ? declared : spec.fallback;
 			};
-			const readCredential = React.useCallback((id) => {
-				const ref = refOf(id);
-				remote.credentials.describe([ref]).then((response) => {
-					if (!response.ok) return;
-					setConfigured(response.value[ref]?.configured === true);
-				}).catch(() => {});
-			}, [remote, section]);
 			React.useEffect(() => host.subscribe(() => {
 				const value = host.getSnapshot().value ?? {};
 				setSection(value);
 				if (!dirty && !saving) setDraft({ ...value });
 			}), [host, dirty, saving]);
-			React.useEffect(() => { readCredential(engine); }, [engine, readCredential]);
+			const credentialRef = refOf(engine);
+			/* Re-read only when the reference changes; a reply for a reference the
+			 * card has since left (engine switch) is dropped, not shown. */
+			React.useEffect(() => {
+				let current = true;
+				remote.credentials.describe([credentialRef]).then((response) => {
+					if (current && response.ok) setConfigured(response.value[credentialRef]?.configured === true);
+				}).catch(() => {});
+				return () => { current = false; };
+			}, [remote, credentialRef]);
 			const switchEngine = (id) => {
 				setDraft((prev) => ({ ...prev, engine: id }));
 				setKeyDraft("");
@@ -187,12 +193,7 @@ window.__ModuleLoader__.load({
 				setDraft((prev) => ({ ...prev, [field]: value }));
 				setDirty(true);
 			};
-			const invalidNumber = VALUE_FIELDS[engine].some((spec) => {
-				if (!NUMERIC_FIELDS.has(spec.field)) return false;
-				const value = draft[spec.field];
-				if (value === undefined || value === "") return false;
-				return !Number.isInteger(Number(value)) || Number(value) < 1;
-			});
+			const invalidNumber = VALUE_FIELDS[engine].some((spec) => isInvalidNumber(spec.field, draft[spec.field]));
 			const blocked = !writable || !dirty || invalidNumber || saving;
 			const save = async () => {
 				if (blocked) return;
@@ -213,7 +214,7 @@ window.__ModuleLoader__.load({
 						await waitForSettings(host, ops);
 					}
 					if (keyDraft.length > 0) {
-						const response = await remote.credentials.set(refOf(engine), keyDraft);
+						const response = await remote.credentials.set(credentialRef, keyDraft);
 						if (!response.ok) throw new Error(response.error.message);
 						setKeyDraft("");
 						setConfigured(true);
@@ -233,7 +234,7 @@ window.__ModuleLoader__.load({
 			};
 			const valueField = (spec) => {
 				const value = draft[spec.field] ?? "";
-				const invalid = NUMERIC_FIELDS.has(spec.field) && value !== "" && (!Number.isInteger(Number(value)) || Number(value) < 1);
+				const invalid = isInvalidNumber(spec.field, value);
 				return React.createElement("div", { className: "dsh-ws-field", key: spec.field },
 					React.createElement("div", { className: "dsh-ws-head" },
 						React.createElement("span", { className: "dsh-ws-label" }, spec.label),
@@ -287,7 +288,7 @@ window.__ModuleLoader__.load({
 			);
 			const depthField = engine === "tavily" ? React.createElement("div", { className: "dsh-ws-field", key: "depth" },
 				React.createElement("div", { className: "dsh-ws-head" },
-					React.createElement("span", { className: "dsh-ws-label" }, "\u641C\u7D22\u6DF1\u5EA6"),
+					React.createElement("span", { className: "dsh-ws-label" }, VALUE_FIELDS.tavily[0].label),
 					React.createElement("span", { className: "dsh-ws-seg" },
 						[{ id: "basic", label: "basic" }, { id: "advanced", label: "advanced" }].map((option) => React.createElement("button", {
 							key: option.id,
@@ -302,12 +303,8 @@ window.__ModuleLoader__.load({
 			) : null;
 			const bodyFields = engine === "tavily"
 				? [keyField, depthField]
-				: engine === "model"
-					? [keyField, ...VALUE_FIELDS.model.map(valueField)]
-					: [keyField, ...VALUE_FIELDS.deepseek.map(valueField)];
-			/* `summary` renders the row's one-liner; `page` renders the form. The
-			 * page's heading chrome belongs to the plugins page owner. */
-			if (props.view === "summary") return DESCRIPTION;
+				: [keyField, ...VALUE_FIELDS[engine].map(valueField)];
+			/* The page's heading chrome belongs to the plugins page owner. */
 			return React.createElement("div", { className: "dsh-ws-body" },
 				!writable ? React.createElement("p", { className: "dsh-ws-readOnly", role: "status" }, COPY.readOnly) : null,
 				engineField,
@@ -350,7 +347,8 @@ window.__ModuleLoader__.load({
 			ctx.effect(() => ctx.configForms.whileServed([name], () => {
 				const offRow = ctx.slots.inject("plugins.row.config", () => ctx.slots.register(
 					{ name: "plugins.row.config", key: "dsh-web-search#web-search" },
-					(props) => React.createElement(WebSearchCard, { ...props, host, remote: ctx.remote }),
+					/* `summary` is the row's static one-liner: no form, no credential lookup. */
+					(props) => props.view === "summary" ? DESCRIPTION : React.createElement(WebSearchCard, { ...props, host, remote: ctx.remote }),
 				));
 				const offSection = ctx.slots.inject("settings.section", () => ctx.slots.register(
 					{ name: "settings.section", id: "web-search", order: 32, label: "网页搜索" },

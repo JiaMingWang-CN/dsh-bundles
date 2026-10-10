@@ -8,7 +8,7 @@
  * Pure module (no `@deepseek-ai/*` imports); transport and error factories
  * arrive via `deps`.
  */
-import { postJson, readJson, resolveApiKey } from "../http.js";
+import { missingKeyError, postJson, readErrorDetail, readJson, resolveApiKey } from "../http.js";
 
 /** Tokens reserved for the model's summary over the retrieved sources. */
 const MAX_COMPLETION_TOKENS = 1024;
@@ -106,9 +106,7 @@ export function mapModelResponse(payload, errors) {
 export async function searchModel(options, request, signal, deps) {
 	const { errors } = deps;
 	const apiKey = await resolveApiKey(options, signal, errors);
-	if (apiKey === undefined || apiKey.length === 0) {
-		throw errors.provider(`model-native web search has no API key; store one through Settings > Plugins > Plugin configuration > Web search (enter the key and save), export it as MIMO1_API_KEY in the launching environment, or set a literal "modelApiKey" in the web-search config`, "WEB_PROVIDER_CREDENTIAL_MISSING");
-	}
+	if (apiKey === undefined || apiKey.length === 0) throw missingKeyError("model-native web search", "MIMO1_API_KEY", "modelApiKey", errors);
 	const endpoint = `${options.baseURL.replace(/\/+$/, "")}/chat/completions`;
 	const response = await postJson(endpoint, {
 		headers: {
@@ -121,15 +119,10 @@ export async function searchModel(options, request, signal, deps) {
 		...signal !== undefined ? { signal } : {}
 	}, deps);
 	if (!response.ok) {
-		let detail = "";
-		try {
-			const payload = await readJson(response, signal, errors);
-			const message = /** @type {{ error?: { message?: unknown, param?: unknown } | string, message?: unknown }} */ (payload)?.error;
-			const text = typeof message === "string" ? message : typeof message?.param === "string" ? message.param : typeof message?.message === "string" ? message.message : typeof /** @type {{ message?: unknown }} */ (payload)?.message === "string" ? /** @type {{ message: string }} */ (payload).message : undefined;
-			if (text !== undefined && text.length > 0) detail = `: ${text}`;
-		} catch {
-			/* status-only message below */
-		}
+		let detail = await readErrorDetail(response, signal, errors, (payload) => {
+			const message = payload?.error;
+			return typeof message === "string" ? message : typeof message?.param === "string" ? message.param : typeof message?.message === "string" ? message.message : typeof payload?.message === "string" ? payload.message : undefined;
+		});
 		if (/webSearchEnabled/i.test(detail)) {
 			detail += ". Activate the Web Search plugin in the model provider's console (Console > Plugin Management) first; it bills per search round";
 		}

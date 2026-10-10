@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { plainErrors } from "../lib/errors.js";
+import { webErrors } from "../lib/errors.js";
 import { buildModelRequest, mapModelResponse, searchModel } from "../lib/engines/model-native.js";
 
 /** Build transport deps around a canned fetch. */
 function deps(fetch) {
-	return { fetch, errors: plainErrors };
+	return { fetch, errors: webErrors };
 }
 
 /** Build a minimal Response stand-in. */
@@ -38,7 +38,7 @@ test("mapModelResponse reads url_citation annotations", () => {
 				]
 			}
 		}]
-	}, plainErrors);
+	}, webErrors);
 	assert.equal(result.content, "summary");
 	assert.deepEqual(result.sources, [
 		{ url: "https://a.test", title: "A" },
@@ -54,7 +54,7 @@ test("mapModelResponse reads structured search_results arrays and dedupes", () =
 			{ link: "https://b.test", name: "B", description: "s2" },
 			{ url: "https://a.test", title: "dupe" }
 		]
-	}, plainErrors);
+	}, webErrors);
 	assert.deepEqual(result.sources, [
 		{ url: "https://a.test", title: "A", snippet: "s1", publishedAt: "2026-02-03" },
 		{ url: "https://b.test", title: "B", snippet: "s2" }
@@ -63,9 +63,9 @@ test("mapModelResponse reads structured search_results arrays and dedupes", () =
 });
 
 test("mapModelResponse rejects payloads without structured citations", () => {
-	assert.throws(() => mapModelResponse(null, plainErrors), { code: "WEB_PROVIDER_ERROR" });
+	assert.throws(() => mapModelResponse(null, webErrors), { code: "WEB_PROVIDER_ERROR" });
 	assert.throws(
-		() => mapModelResponse({ choices: [{ message: { content: "prose with https://only.text" } }] }, plainErrors),
+		() => mapModelResponse({ choices: [{ message: { content: "prose with https://only.text" } }] }, webErrors),
 		{ code: "WEB_PROVIDER_ERROR" }
 	);
 });

@@ -45,6 +45,6 @@ export class DispatchProvider {
 		const engine = options.engine;
 		const run = this.engines[engine];
 		if (run === undefined) throw this.deps.errors.provider(`unknown web search engine "${engine}"`, "WEB_PROVIDER_ERROR");
-		return run(options[engine] ?? options, request, signal, this.deps);
+		return run(options[engine], request, signal, this.deps);
 	}
 }

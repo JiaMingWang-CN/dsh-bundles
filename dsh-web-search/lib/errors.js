@@ -30,6 +30,3 @@ function aborted(cause = undefined) {
 
 /** Web-error factory pair injected into every engine. */
 export const webErrors = { provider, aborted };
-
-/** Backward-compatible alias retained for pure engine consumers. */
-export const plainErrors = webErrors;

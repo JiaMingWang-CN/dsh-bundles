@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { plainErrors } from "../lib/errors.js";
+import { webErrors } from "../lib/errors.js";
 import { buildDeepseekRequest, mapDeepseekResponse, searchDeepseek, DEEPSEEK_MODEL, DEEPSEEK_API_VERSION } from "../lib/engines/deepseek.js";
 
 /** Build transport deps around a canned fetch. */
 function deps(fetch) {
-	return { fetch, errors: plainErrors };
+	return { fetch, errors: webErrors };
 }
 
 /** Build a minimal Response stand-in. */
@@ -38,7 +38,7 @@ test("mapDeepseekResponse joins result blocks with citation snippets", () => {
 			},
 			{ type: "text", text: "…", citations: [{ url: "https://a.test", cited_text: "excerpt" }] }
 		]
-	}, plainErrors);
+	}, webErrors);
 	assert.deepEqual(result.sources, [
 		{ url: "https://a.test", title: "A", snippet: "excerpt", publishedAt: "2026-01-01" },
 		{ url: "https://b.test", title: "B" }
@@ -47,8 +47,8 @@ test("mapDeepseekResponse joins result blocks with citation snippets", () => {
 });
 
 test("mapDeepseekResponse rejects responses without structured search blocks", () => {
-	assert.throws(() => mapDeepseekResponse({ content: [{ type: "text", text: "prose https://a.test" }] }, plainErrors), { code: "WEB_PROVIDER_ERROR" });
-	assert.throws(() => mapDeepseekResponse(null, plainErrors), { code: "WEB_PROVIDER_ERROR" });
+	assert.throws(() => mapDeepseekResponse({ content: [{ type: "text", text: "prose https://a.test" }] }, webErrors), { code: "WEB_PROVIDER_ERROR" });
+	assert.throws(() => mapDeepseekResponse(null, webErrors), { code: "WEB_PROVIDER_ERROR" });
 });
 
 test("searchDeepseek posts, records a secret-free request, and maps failures", async () => {

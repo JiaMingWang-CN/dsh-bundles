@@ -7,7 +7,7 @@
  * only: URLs are never scraped out of model prose. Pure module (no
  * `@deepseek-ai/*` imports); transport and error factories arrive via `deps`.
  */
-import { postJson, readJson, resolveApiKey, throwIfAborted } from "../http.js";
+import { missingKeyError, postJson, readErrorDetail, readJson, resolveApiKey, throwIfAborted } from "../http.js";
 
 /** Anthropic-format model used for the search turn. */
 export const DEEPSEEK_MODEL = "deepseek-v4-flash";
@@ -19,7 +19,7 @@ export const DEEPSEEK_API_VERSION = "2023-06-01";
 export const DEEPSEEK_MAX_TOKENS = 4096;
 
 /** Attribution header sent on every request. */
-const USER_AGENT = "deepseek-harness-dsh-web-search/0.2.0";
+const USER_AGENT = "deepseek-harness-dsh-web-search/0.2.1";
 
 /**
  * Build the Messages request for one forced web search.
@@ -102,9 +102,7 @@ export function mapDeepseekResponse(payload, errors) {
 export async function searchDeepseek(options, request, signal, deps) {
 	const { errors } = deps;
 	const apiKey = await resolveApiKey(options, signal, errors);
-	if (apiKey === undefined || apiKey.length === 0) {
-		throw errors.provider(`DeepSeek search has no API key; store one through Settings > Plugins > Plugin configuration > Web search (enter the key and save), export it as DEEPSEEK_API_KEY in the launching environment, or set a literal "deepseekApiKey" in the web-search config`, "WEB_PROVIDER_CREDENTIAL_MISSING");
-	}
+	if (apiKey === undefined || apiKey.length === 0) throw missingKeyError("DeepSeek search", "DEEPSEEK_API_KEY", "deepseekApiKey", errors);
 	const { endpoint, body } = buildDeepseekRequest(options, request.query);
 	throwIfAborted(signal, errors);
 	options.recordRequest?.({ endpoint, apiVersion: DEEPSEEK_API_VERSION, body });
@@ -121,15 +119,7 @@ export async function searchDeepseek(options, request, signal, deps) {
 		...signal !== undefined ? { signal } : {}
 	}, deps);
 	if (!response.ok) {
-		let detail = "";
-		try {
-			const payload = await readJson(response, signal, errors);
-			const parsed = /** @type {{ error?: unknown, message?: unknown }} */ (payload);
-			const text = typeof parsed.error === "string" ? parsed.error : /** @type {{ message?: unknown }} */ (parsed.error)?.message ?? parsed.message;
-			if (text !== undefined && String(text).length > 0) detail = `: ${String(text)}`;
-		} catch {
-			/* status-only message below */
-		}
+		const detail = await readErrorDetail(response, signal, errors, (payload) => typeof payload.error === "string" ? payload.error : payload.error?.message ?? payload.message);
 		throw errors.provider(`DeepSeek API error (HTTP ${response.status})${detail}\n\nThe web search request used endpoint ${JSON.stringify(endpoint)}. Search endpoint configuration is separate from chat; change it under Settings > Plugins > Plugin configuration > Web search (Endpoint field) or set "deepseekBaseUrl" in the web-search config. Only the user should choose or change the endpoint.`, "WEB_PROVIDER_ERROR");
 	}
 	return mapDeepseekResponse(await readJson(response, signal, errors), errors);

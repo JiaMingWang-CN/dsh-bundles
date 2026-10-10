@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 
 function reactHarness() {
 	const state = [];
+	const effects = [];
 	let cursor = 0;
+	let effectCursor = 0;
 	const React = {
 		createElement(type, props, ...children) {
 			if (typeof type === "function") return type(props ?? {});
@@ -16,10 +18,16 @@ function reactHarness() {
 				state[index] = typeof value === "function" ? value(state[index]) : value;
 			}];
 		},
-		useEffect() {},
+		useEffect(effect, deps) {
+			const index = effectCursor++;
+			const prev = effects[index];
+			if (prev !== undefined && deps !== undefined && deps.length === prev.deps.length && deps.every((dep, i) => Object.is(dep, prev.deps[i]))) return;
+			prev?.cleanup?.();
+			effects[index] = { deps, cleanup: effect() };
+		},
 		useCallback(value) { return value; }
 	};
-	return { React, reset: () => { cursor = 0; } };
+	return { React, reset: () => { cursor = 0; effectCursor = 0; } };
 }
 
 function find(node, predicate, found = []) {
@@ -36,7 +44,7 @@ function find(node, predicate, found = []) {
 async function mount(remote, mutate) {
 	const hooks = reactHarness();
 	let plugin;
-	let renderCard;
+	const renders = {};
 	const previousWindow = globalThis.window;
 	const previousDocument = globalThis.document;
 	globalThis.window = { __ModuleLoader__: { load: (record) => { plugin = record.factory(() => hooks.React); } } };
@@ -75,14 +83,14 @@ async function mount(remote, mutate) {
 			effect: (effect) => effect(),
 			slots: {
 				inject: (_name, install) => install(),
-				register: (_spec, render) => { renderCard = render; return () => {}; }
+				register: (spec, render) => { renders[spec.name] = render; return () => {}; }
 			}
 		});
 		return {
 			host,
-			render() {
+			render(slot = "settings.section", props = {}) {
 				hooks.reset();
-				return renderCard();
+				return renders[slot](props);
 			}
 		};
 	} finally {
@@ -178,4 +186,32 @@ test("settings refusal is detected instead of silently closing", async () => {
 	await find(tree, (node) => node.props.className === "dsh-ws-save")[0].props.onClick();
 	tree = mounted.render();
 	assert.equal(find(tree, (node) => node.props.className === "dsh-ws-failed").length, 1);
+});
+
+test("a late credential lookup for a previous engine does not overwrite the badge", async () => {
+	const pending = {};
+	const mounted = await mount({ credentials: {
+		describe: ([ref]) => new Promise((resolve) => { pending[ref] = resolve; }),
+		set: async () => ({ ok: true, value: undefined })
+	} });
+	let tree = mounted.render();
+	find(tree, (node) => node.props.className === "dsh-ws-segbtn")[0].props.onClick();
+	tree = mounted.render();
+	pending.MIMO1_API_KEY({ ok: true, value: { MIMO1_API_KEY: { configured: false } } });
+	pending.TAVILY_API_KEY({ ok: true, value: { TAVILY_API_KEY: { configured: true } } });
+	await new Promise((resolve) => setImmediate(resolve));
+	tree = mounted.render();
+	const badge = find(tree, (node) => typeof node.props.className === "string" && node.props.className.startsWith("dsh-ws-badge "))[0]
+		?? find(tree, (node) => node.props.className === "dsh-ws-badge")[0];
+	assert.equal(badge.children.join(""), "未配置密钥");
+});
+
+test("the row summary renders the one-liner without a credential lookup", async () => {
+	let lookups = 0;
+	const mounted = await mount({ credentials: {
+		describe: async () => { lookups++; return { ok: true, value: {} }; },
+		set: async () => ({ ok: true, value: undefined })
+	} });
+	assert.match(mounted.render("plugins.row.config", { view: "summary" }), /web_search/);
+	assert.equal(lookups, 0);
 });

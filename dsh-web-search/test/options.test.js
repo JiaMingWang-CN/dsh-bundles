@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { WebError } from "@deepseek-ai/dsh-web";
-import { plainErrors } from "../lib/errors.js";
+import { webErrors } from "../lib/errors.js";
 import { normalizeSection, engineAvailable, ENGINES, DEFAULTS } from "../lib/options.js";
 
 test("normalizeSection applies defaults for an empty section", () => {
@@ -66,11 +66,11 @@ test("normalizeSection carries credential resolvers per engine", async () => {
 
 test("web errors use the seam's real WebError type", () => {
 	const cause = new Error("cause");
-	const error = plainErrors.provider("boom", "WEB_PROVIDER_ERROR", cause);
+	const error = webErrors.provider("boom", "WEB_PROVIDER_ERROR", cause);
 	assert.ok(error instanceof WebError);
 	assert.equal(error.name, "WebError");
 	assert.equal(error.code, "WEB_PROVIDER_ERROR");
 	assert.equal(error.cause, cause);
-	assert.equal(plainErrors.aborted("reason").code, "WEB_ABORTED");
-	assert.equal(plainErrors.provider("m").code, "WEB_PROVIDER_ERROR");
+	assert.equal(webErrors.aborted("reason").code, "WEB_ABORTED");
+	assert.equal(webErrors.provider("m").code, "WEB_PROVIDER_ERROR");
 });

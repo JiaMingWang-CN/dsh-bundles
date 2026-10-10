@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { plainErrors } from "../lib/errors.js";
+import { webErrors } from "../lib/errors.js";
 import { mapTavilyResponse, searchTavily, TAVILY_ENDPOINT } from "../lib/engines/tavily.js";
 
 /** Build transport deps around a canned fetch. */
 function deps(fetch) {
-	return { fetch, errors: plainErrors };
+	return { fetch, errors: webErrors };
 }
 
 /** Build a minimal Response stand-in. */
@@ -25,7 +25,7 @@ test("mapTavilyResponse maps answer, results, and optional metadata", () => {
 			{ url: "https://b.test", title: "B" },
 			{ title: "no url, dropped" }
 		]
-	}, plainErrors);
+	}, webErrors);
 	assert.equal(result.content, "summary");
 	assert.equal(result.truncated, false);
 	assert.deepEqual(result.sources, [
@@ -35,12 +35,12 @@ test("mapTavilyResponse maps answer, results, and optional metadata", () => {
 });
 
 test("mapTavilyResponse tolerates empty results but rejects unrecognizable payloads", () => {
-	const empty = mapTavilyResponse({ results: [] }, plainErrors);
+	const empty = mapTavilyResponse({ results: [] }, webErrors);
 	assert.deepEqual(empty.sources, []);
 	assert.equal(empty.content, undefined);
-	assert.throws(() => mapTavilyResponse(null, plainErrors), { code: "WEB_PROVIDER_ERROR" });
-	assert.throws(() => mapTavilyResponse("text", plainErrors), { code: "WEB_PROVIDER_ERROR" });
-	assert.throws(() => mapTavilyResponse({ unexpected: 1 }, plainErrors), { code: "WEB_PROVIDER_ERROR" });
+	assert.throws(() => mapTavilyResponse(null, webErrors), { code: "WEB_PROVIDER_ERROR" });
+	assert.throws(() => mapTavilyResponse("text", webErrors), { code: "WEB_PROVIDER_ERROR" });
+	assert.throws(() => mapTavilyResponse({ unexpected: 1 }, webErrors), { code: "WEB_PROVIDER_ERROR" });
 });
 
 test("searchTavily posts the documented body and forwards the signal", async () => {

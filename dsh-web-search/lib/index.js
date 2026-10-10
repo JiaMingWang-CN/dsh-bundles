@@ -86,24 +86,11 @@ function apply(ctx, config) {
 	/* Volatile Config fields arrive as readonly references (`Ref.get()`); the
 	 * loader commits a settings write into them without remounting this plugin,
 	 * which is what keeps the engine switch restart-free. */
-	const current = () => ({
-		engine: config.engine.get(),
-		tavilyApiKey: config.tavilyApiKey.get(),
-		tavilyApiKeyEnv: config.tavilyApiKeyEnv.get(),
-		tavilySearchDepth: config.tavilySearchDepth.get(),
-		modelApiKey: config.modelApiKey.get(),
-		modelApiKeyEnv: config.modelApiKeyEnv.get(),
-		modelBaseUrl: config.modelBaseUrl.get(),
-		modelId: config.modelId.get(),
-		deepseekApiKey: config.deepseekApiKey.get(),
-		deepseekApiKeyEnv: config.deepseekApiKeyEnv.get(),
-		deepseekBaseUrl: config.deepseekBaseUrl.get(),
-		deepseekMaxUses: config.deepseekMaxUses.get()
-	});
+	const current = () => Object.fromEntries(Object.keys(Config.dict).map((field) => [field, config[field].get()]));
 	const resolveKeys = {
-		tavily: makeKeyResolver(ctx, () => current().tavilyApiKeyEnv ?? DEFAULT_KEY_REFS.tavily),
-		model: makeKeyResolver(ctx, () => current().modelApiKeyEnv ?? DEFAULT_KEY_REFS.model),
-		deepseek: makeKeyResolver(ctx, () => current().deepseekApiKeyEnv ?? DEFAULT_KEY_REFS.deepseek)
+		tavily: makeKeyResolver(ctx, () => config.tavilyApiKeyEnv.get() ?? DEFAULT_KEY_REFS.tavily),
+		model: makeKeyResolver(ctx, () => config.modelApiKeyEnv.get() ?? DEFAULT_KEY_REFS.model),
+		deepseek: makeKeyResolver(ctx, () => config.deepseekApiKeyEnv.get() ?? DEFAULT_KEY_REFS.deepseek)
 	};
 	const options = () => {
 		const normalized = normalizeSection(current(), resolveKeys);

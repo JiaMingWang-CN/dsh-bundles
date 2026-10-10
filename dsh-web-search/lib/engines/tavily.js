@@ -3,7 +3,7 @@
  * credits/month). Pure module (no `@deepseek-ai/*` imports) so `node --test`
  * can run it standalone; transport and error factories arrive via `deps`.
  */
-import { postJson, readJson, resolveApiKey } from "../http.js";
+import { missingKeyError, postJson, readErrorDetail, readJson, resolveApiKey } from "../http.js";
 
 /** The Tavily Search endpoint. */
 export const TAVILY_ENDPOINT = "https://api.tavily.com/search";
@@ -48,9 +48,7 @@ export function mapTavilyResponse(payload, errors) {
 export async function searchTavily(options, request, signal, deps) {
 	const { errors } = deps;
 	const apiKey = await resolveApiKey(options, signal, errors);
-	if (apiKey === undefined || apiKey.length === 0) {
-		throw errors.provider(`Tavily search has no API key; store one through Settings > Plugins > Plugin configuration > Web search (enter the key and save), export it as TAVILY_API_KEY in the launching environment, or set a literal "tavilyApiKey" in the web-search config`, "WEB_PROVIDER_CREDENTIAL_MISSING");
-	}
+	if (apiKey === undefined || apiKey.length === 0) throw missingKeyError("Tavily search", "TAVILY_API_KEY", "tavilyApiKey", errors);
 	const response = await postJson(TAVILY_ENDPOINT, {
 		headers: {
 			"authorization": `Bearer ${apiKey}`,
@@ -77,14 +75,10 @@ export async function searchTavily(options, request, signal, deps) {
  * @returns {Promise<Error>} the coded error to throw.
  */
 async function statusError(response, signal, errors) {
-	let detail = "";
-	try {
-		const payload = await readJson(response, signal, errors);
-		const message = /** @type {{ detail?: { error?: unknown } }} */ (payload)?.detail?.error;
-		if (typeof message === "string" && message.length > 0) detail = `: ${message}`;
-	} catch {
-		/* status-only message below */
-	}
+	const detail = await readErrorDetail(response, signal, errors, (payload) => {
+		const message = payload?.detail?.error;
+		return typeof message === "string" ? message : undefined;
+	});
 	if (response.status === 401 || response.status === 403) {
 		return errors.provider(`Tavily rejected the API key (HTTP ${response.status})${detail}`, "WEB_PROVIDER_CREDENTIAL_MISSING");
 	}
