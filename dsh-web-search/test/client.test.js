@@ -41,7 +41,48 @@ function find(node, predicate, found = []) {
 	return found;
 }
 
-async function mount(remote, mutate) {
+/** One settings scope stand-in: value, inherited base, revision, and writes. */
+function makeForm(initial = {}, mutate) {
+	const snapshot = {
+		writable: true,
+		value: { ...(initial.value ?? {}) },
+		base: { ...(initial.base ?? {}) },
+		revision: "r1"
+	};
+	const listeners = new Set();
+	const calls = [];
+	let revision = 1;
+	const publish = () => {
+		for (const listener of listeners) listener();
+	};
+	const apply = (ops) => {
+		for (const op of ops) {
+			const key = op.path[0];
+			if (op.op === "set") snapshot.value[key] = op.value;
+			else snapshot.value[key] = snapshot.base?.[key];
+		}
+		snapshot.revision = `r${++revision}`;
+		publish();
+	};
+	return {
+		calls,
+		snapshot,
+		apply,
+		publish,
+		getSnapshot: () => snapshot,
+		subscribe(listener) {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+		async mutate(ops) {
+			calls.push(ops);
+			if (mutate !== undefined) return mutate(ops, { apply, snapshot, publish });
+			apply(ops);
+		}
+	};
+}
+
+async function mount(remote, mutate, options = {}) {
 	const hooks = reactHarness();
 	let plugin;
 	const renders = {};
@@ -54,26 +95,14 @@ async function mount(remote, mutate) {
 	};
 	try {
 		await import(`../lib/client.js?test=${Math.random()}`);
-		const snapshot = { writable: true, value: {}, revision: "r1" };
-		const listeners = new Set();
-		const publish = (ops) => {
-			for (const op of ops) snapshot.value[op.path[0]] = op.value;
-			for (const listener of listeners) listener();
-		};
-		const host = {
-			getSnapshot: () => snapshot,
-			subscribe(listener) {
-				listeners.add(listener);
-				return () => listeners.delete(listener);
-			},
-			async mutate(ops) {
-				if (mutate !== undefined) return mutate(ops, snapshot, publish);
-				publish(ops);
-			}
-		};
+		const pluginForm = makeForm(options.plugin ?? { value: {} }, mutate);
+		const webForm = makeForm(options.web ?? {
+			value: { searchProvider: "web-search", fetchProvider: "http" },
+			base: { searchProvider: "web-search", fetchProvider: "http" }
+		});
 		plugin.apply({
 			configForms: {
-				get: () => host,
+				get: (namespace) => namespace === "web" ? webForm : pluginForm,
 				whileServed: (_namespaces, register) => {
 					const off = register();
 					return () => off?.();
@@ -87,7 +116,8 @@ async function mount(remote, mutate) {
 			}
 		});
 		return {
-			host,
+			host: pluginForm,
+			web: webForm,
 			render(slot = "settings.section", props = {}) {
 				hooks.reset();
 				return renders[slot](props);
@@ -97,6 +127,14 @@ async function mount(remote, mutate) {
 		globalThis.window = previousWindow;
 		globalThis.document = previousDocument;
 	}
+}
+
+/** A remote whose credential lookup reports a configured key. */
+function configuredRemote(configured = true) {
+	return { credentials: {
+		describe: async ([ref]) => ({ ok: true, value: { [ref]: { configured } } }),
+		set: async () => ({ ok: true, value: undefined })
+	} };
 }
 
 test("API key alone enables save and waits for credential persistence", async () => {
@@ -127,10 +165,7 @@ test("API key alone enables save and waits for credential persistence", async ()
 });
 
 test("engine selection remains a discardable draft", async () => {
-	const mounted = await mount({ credentials: {
-		describe: async () => ({ ok: true, value: {} }),
-		set: async () => ({ ok: true, value: undefined })
-	} });
+	const mounted = await mount(configuredRemote());
 	let tree = mounted.render();
 	tree = mounted.render();
 	const engineButtons = find(tree, (node) => typeof node.props.className === "string" && node.props.className.startsWith("dsh-ws-segbtn"));
@@ -159,11 +194,8 @@ test("credential refusal stays open and reports a save failure", async () => {
 });
 
 test("a delayed settings publication does not report a false failure", async () => {
-	const mounted = await mount({ credentials: {
-		describe: async () => ({ ok: true, value: {} }),
-		set: async () => ({ ok: true, value: undefined })
-	} }, async (ops, _snapshot, publish) => {
-		setTimeout(() => publish(ops), 10);
+	const mounted = await mount(configuredRemote(), async (ops, form) => {
+		setTimeout(() => form.apply(ops), 10);
 	});
 	let tree = mounted.render();
 	tree = mounted.render();
@@ -175,10 +207,7 @@ test("a delayed settings publication does not report a false failure", async () 
 });
 
 test("settings refusal is detected instead of silently closing", async () => {
-	const mounted = await mount({ credentials: {
-		describe: async () => ({ ok: true, value: {} }),
-		set: async () => ({ ok: true, value: undefined })
-	} }, async () => {});
+	const mounted = await mount(configuredRemote(), async () => {});
 	let tree = mounted.render();
 	tree = mounted.render();
 	find(tree, (node) => node.children.join("") === "advanced")[0].props.onClick();
@@ -201,9 +230,75 @@ test("a late credential lookup for a previous engine does not overwrite the badg
 	pending.TAVILY_API_KEY({ ok: true, value: { TAVILY_API_KEY: { configured: true } } });
 	await new Promise((resolve) => setImmediate(resolve));
 	tree = mounted.render();
-	const badge = find(tree, (node) => typeof node.props.className === "string" && node.props.className.startsWith("dsh-ws-badge "))[0]
-		?? find(tree, (node) => node.props.className === "dsh-ws-badge")[0];
+	const badge = find(tree, (node) => {
+		const text = Array.isArray(node.children) ? node.children.join("") : "";
+		return text === "未配置密钥" || text === "已配置密钥";
+	})[0];
 	assert.equal(badge.children.join(""), "未配置密钥");
+});
+
+test("turning third-party search off writes the remembered built-in group", async () => {
+	const mounted = await mount(configuredRemote(), undefined, {
+		plugin: { value: { engine: "tavily", builtin: "api" } }
+	});
+	let tree = mounted.render();
+	const toggle = find(tree, (node) => node.props.role === "switch")[0];
+	assert.equal(toggle.props["aria-checked"], "true");
+	await toggle.props.onClick();
+	assert.deepEqual(mounted.web.calls[0], [
+		{ op: "set", path: ["searchProvider"], value: "deepseek-search-api" },
+		{ op: "set", path: ["fetchProvider"], value: "deepseek-fetch-api" }
+	]);
+	assert.deepEqual(mounted.web.snapshot.value, {
+		searchProvider: "deepseek-search-api",
+		fetchProvider: "deepseek-fetch-api"
+	});
+});
+
+test("turning third-party search on remembers the built-in group and unsets web", async () => {
+	const mounted = await mount(configuredRemote(), undefined, {
+		plugin: { value: { engine: "tavily" } },
+		web: {
+			value: { searchProvider: "deepseek-official", fetchProvider: "http" },
+			base: { searchProvider: "web-search", fetchProvider: "http" }
+		}
+	});
+	let tree = mounted.render();
+	const toggle = find(tree, (node) => node.props.role === "switch")[0];
+	assert.equal(toggle.props["aria-checked"], "false");
+	await toggle.props.onClick();
+	assert.deepEqual(mounted.host.calls[0], [{ op: "set", path: ["builtin"], value: "messages" }]);
+	assert.deepEqual(mounted.web.calls[0], [
+		{ op: "unset", path: ["searchProvider"] },
+		{ op: "unset", path: ["fetchProvider"] }
+	]);
+	assert.deepEqual(mounted.web.snapshot.value, {
+		searchProvider: "web-search",
+		fetchProvider: "http"
+	});
+	tree = mounted.render();
+	assert.equal(find(tree, (node) => node.props.role === "switch")[0].props["aria-checked"], "true");
+});
+
+test("the master switch follows the web provider and disables without a key", async () => {
+	const mounted = await mount(configuredRemote(false), undefined, {
+		plugin: { value: { engine: "tavily" } },
+		web: {
+			value: { searchProvider: "deepseek-official", fetchProvider: "http" },
+			base: { searchProvider: "web-search", fetchProvider: "http" }
+		}
+	});
+	let tree = mounted.render();
+	let toggle = find(tree, (node) => node.props.role === "switch")[0];
+	assert.equal(toggle.props.disabled, true);
+	assert.equal(find(tree, (node) => node.props.className === "dsh-ws-invalid").length, 1);
+
+	mounted.web.snapshot.value.searchProvider = "web-search";
+	mounted.web.publish();
+	tree = mounted.render();
+	toggle = find(tree, (node) => node.props.role === "switch")[0];
+	assert.equal(toggle.props["aria-checked"], "true");
+	assert.equal(toggle.props.disabled, false);
 });
 
 test("the row summary renders the one-liner without a credential lookup", async () => {

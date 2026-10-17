@@ -2,7 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 + Browser-Use MCP 工具集，以及可切换的多引擎网页搜索。
+一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 + Browser-Use MCP 工具集，以及可一键交回内置的第三方网页搜索。
 
 每个目录都是一个可单独安装的 bundle。只安装需要的部分即可。
 
@@ -40,15 +40,14 @@
 
 CodeGraph 与 Context7 由 `npx -y` 启动，Browser-Use 由 `uvx` 启动，都不要求全局安装。
 
-### 网页搜索
+### 第三方搜索
 
-`dsh-web-search` 为 `web_search` 工具提供可切换的搜索后端，在“设置 → 网页搜索”页面中
-一键更换，即时生效；不修改 DSH 本体，卸载即恢复内置行为。
+`dsh-web-search` 为 `web_search` 工具增加第三方搜索后端，在“设置 → 第三方搜索”页面中提供总开关，即时生效；关闭开关即交回 DSH 内置搜索。
 
-- Tavily（默认）：免费 1000 次/月，LLM 优化搜索；
+- Tavily（默认，可关闭）：免费 1000 次/月，LLM 优化搜索；
 - 模型自带联网：MiMo 服务端 `web_search`，约 ¥16/千次 + token 费（需在 MiMo 控制台开通「Web Search 插件」）；
-- DeepSeek 官方：沿用内置搜索，消耗 DeepSeek 余额；
-- API Key 经 credentials 域保存，不落 `settings.yaml` 明文。
+- 关闭总开关：交回 DSH 内置 DeepSeek 搜索（Messages 或新版 Search API，按上次选择恢复）；
+- API Key 经 credentials 域保存，不落 profile 设置文件明文。
 
 ## 快速安装
 
@@ -70,7 +69,7 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-clie
 # CodeGraph + Context7 + Browser-Use MCP 工具集
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
 
-# 免费网页搜索（Tavily / 模型自带联网 / DeepSeek 可切换）
+# 第三方网页搜索（Tavily / 模型自带联网，可一键交回内置）
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
 ```
 
@@ -115,11 +114,11 @@ Browser-Use 通过 `uvx` 启动，首次运行会下载 Python 包；需要本�
 
 只有主会话从运行中变为完成、且当前页面未聚焦时才会通知。
 
-### 切换网页搜索
+### 切换第三方搜索
 
 1. 打开 DSH 的“设置”；
-2. 进入“网页搜索”；
-3. 选择搜索工具（Tavily / 模型自带联网 / DeepSeek 官方），填入 API Key 并保存。
+2. 进入“第三方搜索”；
+3. 选择第三方后端（Tavily / 模型自带联网），填入 API Key 并保存；需要时关闭顶部总开关交回内置。
 
 切换即时生效、无需重启；各引擎的开通与计费说明见 `dsh-web-search/README.md`。
 
@@ -166,6 +165,12 @@ codegraph init -i
 ### MCP server 第一次启动很慢
 
 CodeGraph 与 Context7 使用 `npx -y`，Browser-Use 使用 `uvx`。第一次运行都需要下载包，后续会使用本机缓存。三者的版本都固定在 `dsh-bundle-mcp-toolkit/patch.yml` 中（CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.3.0`、Browser-Use `browser-use==0.13.11`），启动时不会重新联网解析最新版本；升级时修改该文件中的版本号。
+
+### 支持哪些 DSH 版本
+
+三个 bundle 均已适配 DSH **0.2.1-rc.2**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 的单测直接跑在
+0.2.1-rc.2 契约上。它的 peer 范围同时保留 `0.1.7-rc.2`、`0.2.0-rc.2` 与 `0.2.1-alpha.x`。搜索插件只增加
+第三方 provider；关闭总开关会写回内置 provider，0.2.1 新增的内置 `web-deepseek-api` 与本插件互不影响。
 
 ### 修改插件后页面没有变化
 

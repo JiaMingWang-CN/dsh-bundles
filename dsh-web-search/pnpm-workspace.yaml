@@ -1,0 +1,17 @@
+# pnpm settings for this bundle. The DSH 0.2.1-rc.2 contract packages were
+# published less than a day before this lockfile was resolved, so pnpm's
+# default minimumReleaseAge policy rejects them until the window passes.
+# Excluding exactly these versions keeps `pnpm install --frozen-lockfile`
+# reproducible without disabling the policy for everything else.
+minimumReleaseAgeExclude:
+  - '@deepseek-ai/cordis@4.0.5'
+  - '@deepseek-ai/cosmokit@1.8.6'
+  - '@deepseek-ai/dsh-brand@0.2.1-rc.2'
+  - '@deepseek-ai/dsh-launch-environment@0.2.1-rc.2'
+  - '@deepseek-ai/dsh-llm@0.2.1-rc.2'
+  - '@deepseek-ai/dsh-timeout@0.2.1-rc.2'
+  - '@deepseek-ai/dsh-typert-protocol@0.2.1-rc.2'
+  - '@deepseek-ai/dsh-util-crypto@0.2.1-rc.2'
+  - '@deepseek-ai/dsh-util-values@0.2.1-rc.2'
+  - '@deepseek-ai/dsh-web@0.2.1-rc.2'
+  - '@deepseek-ai/schemastery@3.18.5'

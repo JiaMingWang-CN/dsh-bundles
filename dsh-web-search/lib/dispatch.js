@@ -15,7 +15,7 @@ export const WEB_SEARCH_PROVIDER_ID = "web-search";
  */
 export class DispatchProvider {
 	/**
-	 * @param {() => { engine: string, tavily: object, model: object, deepseek: object }} resolveOptions - live options source.
+	 * @param {() => { engine: string, tavily: object, model: object }} resolveOptions - live options source.
 	 * @param {Record<string, (options: object, request: { query: string, maxResults?: number }, signal: AbortSignal | undefined, deps: object) => Promise<object>>} engines - engine runners by id.
 	 * @param {{ fetch: typeof fetch, errors: { provider: (m: string, c?: string, cause?: unknown) => Error, aborted: (cause?: unknown) => Error } }} deps - transport and error deps.
 	 */

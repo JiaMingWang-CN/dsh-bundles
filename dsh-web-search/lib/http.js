@@ -107,7 +107,7 @@ export async function readJson(response, signal, errors) {
  * @returns {Error} the coded error.
  */
 export function missingKeyError(label, envName, literalField, errors) {
-	return errors.provider(`${label} has no API key; store one through Settings > Plugins > Plugin configuration > Web search (enter the key and save), export it as ${envName} in the launching environment, or set a literal "${literalField}" in the web-search config`, "WEB_PROVIDER_CREDENTIAL_MISSING");
+	return errors.provider(`${label} has no API key; store one through Settings > 第三方搜索 (enter the key and save), export it as ${envName} in the launching environment, or set a literal "${literalField}" in the web-search config. Alternatively, turn off third-party search in Settings > 第三方搜索 to use DSH's built-in DeepSeek search`, "WEB_PROVIDER_CREDENTIAL_MISSING");
 }
 
 /**

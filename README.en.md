@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 + Browser-Use MCP toolkit, and a free multi-engine web search provider.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 + Browser-Use MCP toolkit, and a third-party web search provider with one switch back to the built-in search.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -40,14 +40,14 @@ Each directory is an independently installable bundle. Install only what you nee
 
 CodeGraph and Context7 launch through `npx -y` and Browser-Use through `uvx`; no global package installation is required.
 
-### Web search
+### Third-party search
 
-`dsh-web-search` gives the `web_search` tool a switchable search backend, chosen from the Web search page in the Settings sidebar and applied live. DSH itself is never modified; uninstalling restores the shipped behavior.
+`dsh-web-search` gives the `web_search` tool a third-party search backend, with a master switch on the Third-party search page in the Settings sidebar; switching is live and turning the switch off hands search back to DSH's built-in provider. DSH itself is never modified; uninstalling restores the shipped behavior.
 
-- Tavily (default): free tier of 1000 searches/month, LLM-optimized results;
+- Tavily (default, switchable off): free tier of 1000 searches/month, LLM-optimized results;
 - Model-native web search: MiMo server-side `web_search`, billed per search round (about ¥16 per 1000 plus token fees; activate the "Web Search plugin" in the MiMo console);
-- DeepSeek official: the built-in search route, billed on the DeepSeek account;
-- API keys are stored through the credentials domain, never as `settings.yaml` plaintext.
+- Master switch off: hands `web_search` back to DSH's built-in DeepSeek search (Messages, or the newer Search API if that was selected last);
+- API keys are stored through the credentials domain, never as profile-settings plaintext.
 
 ## Quick install
 
@@ -69,7 +69,7 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-clie
 # CodeGraph + Context7 + Browser-Use MCP toolkit
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
 
-# Free multi-engine web search (Tavily / model-native / DeepSeek switchable)
+# Third-party web search (Tavily / model-native, one switch back to built-in)
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
 ```
 
@@ -114,11 +114,11 @@ Browser-Use launches through `uvx` and downloads its Python package on first run
 
 A notification is sent only when a main session transitions from running to complete while the page is not focused.
 
-### Switch the web search tool
+### Switch third-party search
 
 1. Open DSH Settings;
-2. Go to Web search in the settings sidebar;
-3. Pick the search tool (Tavily / model-native / DeepSeek official), enter the API key, and save.
+2. Go to Third-party search in the settings sidebar;
+3. Pick the third-party backend (Tavily / model-native), enter the API key, and save; turn the top-level master switch off to hand search back to DSH's built-in provider.
 
 Switching takes effect immediately with no restart; per-engine setup and billing notes live in `dsh-web-search/README.md`.
 
@@ -165,6 +165,14 @@ codegraph init -i
 ### The MCP server is slow on first launch
 
 CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run downloads the package; later runs use the local cache. All three versions are pinned in `dsh-bundle-mcp-toolkit/patch.yml` (CodeGraph `@colbymchenry/codegraph@1.6.2`, Context7 `@upstash/context7-mcp@4.3.0`, Browser-Use `browser-use==0.13.11`), so startup never re-resolves the latest release over the network; edit the versions there to upgrade.
+
+### Which DSH versions are supported
+
+All three bundles are adapted to DSH **0.2.1-rc.2** (current latest): the host halves mount, and
+`dsh-web-search`'s tests run directly against the 0.2.1-rc.2 contracts. Its peer range also keeps
+`0.1.7-rc.2`, `0.2.0-rc.2`, and `0.2.1-alpha.x`. The search plugin only adds a third-party provider;
+turning the master switch off writes a built-in provider back, so 0.2.1's built-in
+`web-deepseek-api` and this bundle do not interfere.
 
 ### A plugin did not change after editing
 

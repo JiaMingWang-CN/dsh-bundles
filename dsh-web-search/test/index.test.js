@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createLaunchEnvironmentSnapshot } from "@deepseek-ai/dsh-launch-environment";
-import { apply } from "../lib/index.js";
+import { apply, Config } from "../lib/index.js";
 
 function response(payload) {
 	return { ok: true, status: 200, json: async () => payload };
@@ -10,8 +10,7 @@ function response(payload) {
 /** Every Config field of the host plugin is volatile: a readonly `Ref.get()`. */
 const CONFIG_FIELDS = [
 	"engine", "tavilyApiKey", "tavilyApiKeyEnv", "tavilySearchDepth",
-	"modelApiKey", "modelApiKeyEnv", "modelBaseUrl", "modelId",
-	"deepseekApiKey", "deepseekApiKeyEnv", "deepseekBaseUrl", "deepseekMaxUses"
+	"modelApiKey", "modelApiKeyEnv", "modelBaseUrl", "modelId", "builtin"
 ];
 
 /** Wrap a plain section the way the loader hands volatile fields to `apply`. */
@@ -19,7 +18,7 @@ function volatileConfig(section) {
 	return Object.fromEntries(CONFIG_FIELDS.map((field) => [field, { get: () => section[field] }]));
 }
 
-function host(config, environment, agent) {
+function host(config, environment) {
 	let provider;
 	const ctx = {
 		web: {
@@ -30,13 +29,21 @@ function host(config, environment, agent) {
 		inject() {},
 		get(name) {
 			if (name === "launchEnvironment") return environment;
-			if (name === "agents" && agent !== undefined) return { currentInitiator: () => agent };
 			return undefined;
 		}
 	};
 	apply(ctx, volatileConfig(config));
 	return () => provider;
 }
+
+test("Config keeps the deprecated deepseek engine loadable and defaults builtin", () => {
+	const config = Config({ engine: "deepseek", builtin: "api" });
+	assert.equal(config.engine.get(), "deepseek");
+	assert.equal(config.builtin.get(), "api");
+	const defaults = Config({});
+	assert.equal(defaults.engine.get(), "tavily");
+	assert.equal(defaults.builtin.get(), "messages");
+});
 
 test("host resolves credentials from the launch-environment seam", async () => {
 	const environment = createLaunchEnvironmentSnapshot([{
@@ -58,25 +65,22 @@ test("host resolves credentials from the launch-environment seam", async () => {
 	assert.equal(authorization, "Bearer launch-key");
 });
 
-test("host appends the official DeepSeek request audit event", async () => {
+test("host maps the deprecated deepseek engine to Tavily at dispatch", async () => {
 	const environment = createLaunchEnvironmentSnapshot([{
-		source: "user-env",
-		values: { DEEPSEEK_API_KEY: "deepseek-key" }
+		source: "project-env",
+		values: { TAVILY_API_KEY: "launch-key" }
 	}]);
-	const events = [];
-	const agent = { session: { append: (type, payload) => events.push({ type, payload }) } };
-	const provider = host({ engine: "deepseek" }, environment, agent)();
+	const provider = host({ engine: "deepseek" }, environment)();
 	const originalFetch = globalThis.fetch;
-	globalThis.fetch = async () => response({
-		content: [{ type: "web_search_tool_result", content: [{ type: "web_search_result", url: "https://a.test" }] }]
-	});
+	let called;
+	globalThis.fetch = async (url) => {
+		called = String(url);
+		return response({ results: [] });
+	};
 	try {
 		await provider.search({ query: "q" });
 	} finally {
 		globalThis.fetch = originalFetch;
 	}
-	assert.equal(events.length, 1);
-	assert.equal(events[0].type, "web/deepseek-search-llm-request");
-	assert.equal(events[0].payload.endpoint, "https://api.deepseek.com/anthropic/v1/messages");
-	assert.equal(JSON.stringify(events[0]).includes("deepseek-key"), false);
+	assert.equal(called, "https://api.tavily.com/search");
 });

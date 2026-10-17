@@ -10,8 +10,6 @@ test("normalizeSection applies defaults for an empty section", () => {
 	assert.equal(options.tavily.searchDepth, "basic");
 	assert.equal(options.model.baseURL, DEFAULTS.modelBaseUrl);
 	assert.equal(options.model.modelId, DEFAULTS.modelId);
-	assert.equal(options.deepseek.baseURL, DEFAULTS.deepseekBaseUrl);
-	assert.equal(options.deepseek.maxUses, 5);
 });
 
 test("normalizeSection keeps literals and validated overrides", () => {
@@ -20,48 +18,44 @@ test("normalizeSection keeps literals and validated overrides", () => {
 		tavilyApiKey: "tvly-key",
 		tavilySearchDepth: "advanced",
 		modelBaseUrl: "https://example.test/v1",
-		modelId: "mimo-x",
-		deepseekBaseUrl: "https://ds.test/v1",
-		deepseekMaxUses: 3
+		modelId: "mimo-x"
 	}, {});
 	assert.equal(options.engine, "model");
 	assert.equal(options.tavily.apiKey, "tvly-key");
 	assert.equal(options.tavily.searchDepth, "advanced");
 	assert.equal(options.model.baseURL, "https://example.test/v1");
 	assert.equal(options.model.modelId, "mimo-x");
-	assert.equal(options.deepseek.baseURL, "https://ds.test/v1");
-	assert.equal(options.deepseek.maxUses, 3);
 });
 
-test("normalizeSection rejects unknown engines and out-of-range values", () => {
-	const options = normalizeSection({ engine: "bing", deepseekMaxUses: 0, modelBaseUrl: "", modelId: "" }, {});
-	assert.equal(options.engine, "tavily");
-	assert.equal(options.deepseek.maxUses, DEFAULTS.deepseekMaxUses);
+test("normalizeSection rejects unknown engines and maps the deprecated deepseek engine", () => {
+	assert.equal(normalizeSection({ engine: "bing" }, {}).engine, "tavily");
+	assert.equal(normalizeSection({ engine: "deepseek" }, {}).engine, "tavily");
+	const options = normalizeSection({ engine: "model", modelBaseUrl: "", modelId: "" }, {});
+	assert.equal(options.engine, "model");
 	assert.equal(options.model.baseURL, DEFAULTS.modelBaseUrl);
 	assert.equal(options.model.modelId, DEFAULTS.modelId);
 });
 
 test("engineAvailable requires a key source and valid endpoints", () => {
 	const resolver = async () => "key";
-	const withKeys = normalizeSection({}, { tavily: resolver, model: resolver, deepseek: resolver });
+	const withKeys = normalizeSection({}, { tavily: resolver, model: resolver });
 	for (const engine of ENGINES) assert.equal(engineAvailable(engine, withKeys), true, engine);
-	const withLiterals = normalizeSection({ tavilyApiKey: "k", modelApiKey: "k", deepseekApiKey: "k" }, {});
+	const withLiterals = normalizeSection({ tavilyApiKey: "k", modelApiKey: "k" }, {});
 	for (const engine of ENGINES) assert.equal(engineAvailable(engine, withLiterals), true, engine);
 	const bare = normalizeSection({}, {});
 	for (const engine of ENGINES) assert.equal(engineAvailable(engine, bare), false, engine);
 	assert.equal(engineAvailable("unknown", withKeys), false);
+	assert.equal(engineAvailable("deepseek", withKeys), false);
 	const badModel = normalizeSection({ modelApiKey: "k", modelBaseUrl: "not a url" }, {});
 	assert.equal(engineAvailable("model", badModel), false);
 });
 
 test("normalizeSection carries credential resolvers per engine", async () => {
-	const options = normalizeSection({}, { tavily: async () => "t", model: async () => "m", deepseek: async () => "d" });
+	const options = normalizeSection({}, { tavily: async () => "t", model: async () => "m" });
 	assert.equal(typeof options.tavily.resolveKey, "function");
 	assert.equal(typeof options.model.resolveKey, "function");
-	assert.equal(typeof options.deepseek.resolveKey, "function");
 	assert.equal(await options.tavily.resolveKey(), "t");
 	assert.equal(await options.model.resolveKey(), "m");
-	assert.equal(await options.deepseek.resolveKey(), "d");
 });
 
 test("web errors use the seam's real WebError type", () => {

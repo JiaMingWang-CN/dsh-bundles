@@ -5,19 +5,22 @@
  * standalone. The Host half supplies credential resolvers; a resolver's
  * presence is what lets `available()` stay synchronous and network-free while
  * still permitting an operation-time `WEB_PROVIDER_CREDENTIAL_MISSING`.
+ *
+ * The deprecated `engine: "deepseek"` value (from the 0.3.x official engine)
+ * normalizes to Tavily instead of failing the whole plugin: the settings schema
+ * still accepts it so the plugin keeps loading and the master switch stays
+ * reachable.
  */
 
 /** Engine ids offered by the settings card, in display order. */
-export const ENGINES = ["tavily", "model", "deepseek"];
+export const ENGINES = ["tavily", "model"];
 
 /** Schema defaults, mirrored here so normalization also holds outside the seam. */
 export const DEFAULTS = {
 	engine: "tavily",
 	tavilySearchDepth: "basic",
 	modelBaseUrl: "https://api.xiaomimimo.com/v1",
-	modelId: "mimo-v2.6-flash",
-	deepseekBaseUrl: "https://api.deepseek.com/anthropic/v1",
-	deepseekMaxUses: 5
+	modelId: "mimo-v2.6-flash"
 };
 
 /** Optional-secret field pairs: literal key first, resolver as the fallback. */
@@ -29,12 +32,11 @@ function keySource(section, literal, resolveKey) {
 /**
  * Normalize one resolved settings section into per-engine options.
  * @param {Record<string, unknown>} [section] - the resolved `web-search` section.
- * @param {{ tavily?: () => Promise<string | undefined>, model?: () => Promise<string | undefined>, deepseek?: () => Promise<string | undefined> }} [resolveKeys] - credential resolvers.
- * @returns {{ engine: string, tavily: object, model: object, deepseek: object }} normalized options.
+ * @param {{ tavily?: () => Promise<string | undefined>, model?: () => Promise<string | undefined> }} [resolveKeys] - credential resolvers.
+ * @returns {{ engine: string, tavily: object, model: object }} normalized options.
  */
 export function normalizeSection(section = {}, resolveKeys = {}) {
 	const engine = ENGINES.includes(/** @type {string} */ (section?.engine)) ? /** @type {string} */ (section.engine) : DEFAULTS.engine;
-	const maxUses = Number.isInteger(section?.deepseekMaxUses) && /** @type {number} */ (section.deepseekMaxUses) > 0 ? /** @type {number} */ (section.deepseekMaxUses) : DEFAULTS.deepseekMaxUses;
 	return {
 		engine,
 		tavily: {
@@ -45,11 +47,6 @@ export function normalizeSection(section = {}, resolveKeys = {}) {
 			...keySource(section, "modelApiKey", resolveKeys.model),
 			baseURL: typeof section?.modelBaseUrl === "string" && section.modelBaseUrl.length > 0 ? /** @type {string} */ (section.modelBaseUrl) : DEFAULTS.modelBaseUrl,
 			modelId: typeof section?.modelId === "string" && section.modelId.length > 0 ? /** @type {string} */ (section.modelId) : DEFAULTS.modelId
-		},
-		deepseek: {
-			...keySource(section, "deepseekApiKey", resolveKeys.deepseek),
-			baseURL: typeof section?.deepseekBaseUrl === "string" && section.deepseekBaseUrl.length > 0 ? /** @type {string} */ (section.deepseekBaseUrl) : DEFAULTS.deepseekBaseUrl,
-			maxUses
 		}
 	};
 }
@@ -63,7 +60,7 @@ function hasKeySource(options) {
  * Cheap local usability check for one engine (the seam's `available()`
  * semantics): synchronous, no network calls.
  * @param {string} engine - the engine id under test.
- * @param {{ tavily: object, model: object, deepseek: object }} options - normalized options.
+ * @param {{ tavily: object, model: object }} options - normalized options.
  * @returns {boolean} whether the engine can be selected right now.
  */
 export function engineAvailable(engine, options) {
@@ -72,8 +69,6 @@ export function engineAvailable(engine, options) {
 			return hasKeySource(options.tavily);
 		case "model":
 			return hasKeySource(options.model) && URL.canParse(options.model.baseURL) && options.model.modelId.length > 0;
-		case "deepseek":
-			return hasKeySource(options.deepseek) && URL.canParse(options.deepseek.baseURL) && Number.isInteger(options.deepseek.maxUses) && options.deepseek.maxUses > 0;
 		default:
 			return false;
 	}

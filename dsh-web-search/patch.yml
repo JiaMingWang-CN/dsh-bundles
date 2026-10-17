@@ -1,15 +1,21 @@
-# Web search provider seam: route ctx.web search through this bundle's
-# switchable multi-engine provider (Tavily free tier / model-native web search /
-# DeepSeek official) and retire the DeepSeek-only provider row so its hard-coded
-# settings card no longer renders. Every line is a declarative loader patch —
-# nothing in DSH itself is modified, and removing this bundle restores the
-# shipped behavior.
+# Web search supplement: add this bundle's switchable third-party provider
+# (Tavily free tier / model-native web search) and make it the default search
+# backend through this bundle's own patch layer. Turning the plugin off writes
+# a built-in DeepSeek provider group back into the user layer; uninstalling
+# while it is on leaves no user override at all, so the shipped base layer
+# (`deepseek-official`) returns untouched.
+#
+# Deliberately do NOT disable `web-search-deepseek`: it is the built-in
+# Messages provider (and its settings page) used when the plugin is off. DSH
+# 0.2.1's `web-deepseek-api` row stays registered too; the user selects which
+# built-in group to return to from the built-in Web search page or through the
+# plugin's remembered `builtin` setting.
+#
+# Every line is a declarative loader patch — nothing in DSH itself is modified,
+# and removing this bundle restores the shipped behavior.
 - insert:
     - id: web-search
       name: 'dsh-web-search'
-- id: web-search-deepseek
-  name: '@deepseek-ai/dsh-web-search-deepseek'
-  disabled: true
 - id: web
   name: '@deepseek-ai/dsh-web'
   config:

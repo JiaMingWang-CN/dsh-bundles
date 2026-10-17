@@ -13,8 +13,7 @@ test("DispatchProvider ids itself and dispatches to the selected engine", async 
 	const calls = [];
 	const engines = {
 		tavily: async (options, request) => { calls.push(["tavily", options, request]); return { sources: [], truncated: false }; },
-		model: async (options, request) => { calls.push(["model", options, request]); return { sources: [], truncated: false }; },
-		deepseek: async () => { calls.push(["deepseek"]); return { sources: [], truncated: false }; }
+		model: async (options, request) => { calls.push(["model", options, request]); return { sources: [], truncated: false }; }
 	};
 	let section = { engine: "tavily", tavilyApiKey: "k" };
 	const provider = new DispatchProvider(() => normalizeSection(section), engines, deps());
@@ -47,8 +46,8 @@ test("DispatchProvider reports availability of the selected engine only", () => 
 	const engines = { tavily: async () => ({ sources: [], truncated: false }) };
 	const unavailable = new DispatchProvider(() => normalizeSection({}), engines, deps());
 	assert.equal(unavailable.available(), false);
-	const deepseekSelected = new DispatchProvider(() => normalizeSection({ engine: "deepseek" }), engines, deps());
-	assert.equal(deepseekSelected.available(), false);
+	const deprecated = new DispatchProvider(() => normalizeSection({ engine: "deepseek" }), engines, deps());
+	assert.equal(deprecated.available(), false);
 });
 
 test("DispatchProvider rejects unknown engines with a coded error", async () => {

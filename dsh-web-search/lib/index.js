@@ -1,11 +1,15 @@
 /**
  * dsh-web-search — host half.
  *
- * Registers ONE switchable search provider (`web-search`) into the `ctx.web`
- * seam and the durable `web-search` settings form behind it. The engine
- * (Tavily free tier / model-native web search / DeepSeek official) is re-read
- * from the live settings source at every search entry, so switching in the
- * bundle's configuration page takes effect without a restart.
+ * Registers ONE switchable third-party search provider (`web-search`) into the
+ * `ctx.web` seam and the durable `web-search` settings form behind it. Engines
+ * are Tavily (free tier) and model-native web search (MiMo); DSH's own
+ * DeepSeek search stays in charge whenever the plugin's master switch is off.
+ *
+ * The bundle patch layer makes the provider the default; the client switch
+ * either clears that user-layer override (on) or writes a built-in DeepSeek
+ * provider group back (off), so the plugin id never has to persist in user
+ * settings. See `patch.yml` and `lib/client.js`.
  *
  * Runtime imports explicitly include the public web and launch-environment
  * contracts as bundle-local dependencies, so a `link:` installation resolves
@@ -18,7 +22,6 @@ import { webErrors as errors } from "./errors.js";
 import { DispatchProvider, WEB_SEARCH_PROVIDER_ID } from "./dispatch.js";
 import { searchTavily } from "./engines/tavily.js";
 import { searchModel } from "./engines/model-native.js";
-import { searchDeepseek } from "./engines/deepseek.js";
 import { normalizeSection, DEFAULTS } from "./options.js";
 
 /** Stable Cordis plugin name; also the provider id and settings namespace. */
@@ -33,15 +36,20 @@ const WEB_SEARCH_SETTINGS_NAMESPACE = "web-search";
 /** Default credential references per engine (environment-variable names). */
 const DEFAULT_KEY_REFS = {
 	tavily: "TAVILY_API_KEY",
-	model: "MIMO1_API_KEY",
-	deepseek: "DEEPSEEK_API_KEY"
+	model: "MIMO1_API_KEY"
 };
 
 /**
- * Durable settings schema: engine selection plus per-engine options. Every
- * field is volatile: the settings form only edits volatile fields, and each
- * read goes through the live reference, so a saved switch reaches the running
- * provider without a remount.
+ * Durable settings schema: engine selection, per-engine options, and the
+ * remembered built-in group the client restores when the master switch is
+ * turned off. Every field is volatile: the settings form only edits volatile
+ * fields, and each read goes through the live reference, so a saved switch
+ * reaches the running provider without a remount.
+ *
+ * `deepseek` stays in the engine union as a deprecated value: dropping it would
+ * make a saved `engine: deepseek` fail schema validation and prevent the plugin
+ * from loading, leaving no UI to turn the switch off. Normalization maps it to
+ * Tavily.
  */
 const Config = z.object({
 	engine: z.union(["tavily", "model", "deepseek"]).default(DEFAULTS.engine).volatile(),
@@ -52,10 +60,7 @@ const Config = z.object({
 	modelApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.model).volatile(),
 	modelBaseUrl: z.string().default(DEFAULTS.modelBaseUrl).volatile(),
 	modelId: z.string().default(DEFAULTS.modelId).volatile(),
-	deepseekApiKey: z.string().role("secret").volatile(),
-	deepseekApiKeyEnv: z.string().role("credential-ref").default(DEFAULT_KEY_REFS.deepseek).volatile(),
-	deepseekBaseUrl: z.string().default(DEFAULTS.deepseekBaseUrl).volatile(),
-	deepseekMaxUses: z.number().step(1).min(1).default(DEFAULTS.deepseekMaxUses).volatile()
+	builtin: z.union(["messages", "api"]).default("messages").volatile()
 });
 
 /**
@@ -89,16 +94,9 @@ function apply(ctx, config) {
 	const current = () => Object.fromEntries(Object.keys(Config.dict).map((field) => [field, config[field].get()]));
 	const resolveKeys = {
 		tavily: makeKeyResolver(ctx, () => config.tavilyApiKeyEnv.get() ?? DEFAULT_KEY_REFS.tavily),
-		model: makeKeyResolver(ctx, () => config.modelApiKeyEnv.get() ?? DEFAULT_KEY_REFS.model),
-		deepseek: makeKeyResolver(ctx, () => config.deepseekApiKeyEnv.get() ?? DEFAULT_KEY_REFS.deepseek)
+		model: makeKeyResolver(ctx, () => config.modelApiKeyEnv.get() ?? DEFAULT_KEY_REFS.model)
 	};
-	const options = () => {
-		const normalized = normalizeSection(current(), resolveKeys);
-		normalized.deepseek.recordRequest = (request) => {
-			ctx.get("agents")?.currentInitiator()?.session.append("web/deepseek-search-llm-request", request);
-		};
-		return normalized;
-	};
+	const options = () => normalizeSection(current(), resolveKeys);
 	/* The bundle renders its own configuration page (plugins.row.config), so the
 	 * automatically generated config page for this entry is suppressed. */
 	ctx.inject(["settings"], (child) => {
@@ -106,8 +104,7 @@ function apply(ctx, config) {
 	});
 	const engines = {
 		tavily: searchTavily,
-		model: searchModel,
-		deepseek: searchDeepseek
+		model: searchModel
 	};
 	ctx.web.registerSearchProvider(new DispatchProvider(options, engines, {
 		fetch: (input, init) => globalThis.fetch(input, init),
