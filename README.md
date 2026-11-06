@@ -164,12 +164,12 @@ codegraph init -i
 
 ### MCP server 第一次启动很慢
 
-CodeGraph 与 Context7 使用 `npx -y`，Browser-Use 使用 `uvx`。第一次运行都需要下载包，后续会使用本机缓存。三者的版本都固定在 `dsh-bundle-mcp-toolkit/patch.yml` 中（CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.3.0`、Browser-Use `browser-use==0.13.11`），启动时不会重新联网解析最新版本；升级时修改该文件中的版本号。
+CodeGraph 与 Context7 使用 `npx -y`，Browser-Use 使用 `uvx`。第一次运行都需要下载包，后续会使用本机缓存。三者的版本都固定在 `dsh-bundle-mcp-toolkit/patch.yml` 中（CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.5.0`、Browser-Use `browser-use==0.13.14`），启动时不会重新联网解析最新版本；升级时修改该文件中的版本号。
 
 ### 支持哪些 DSH 版本
 
-三个 bundle 均已适配 DSH **0.2.1-rc.2**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 的单测直接跑在
-0.2.1-rc.2 契约上。它的 peer 范围同时保留 `0.1.7-rc.2`、`0.2.0-rc.2` 与 `0.2.1-alpha.x`。搜索插件只增加
+三个 bundle 均已适配 DSH **0.2.1-rc.5**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 的单测直接跑在
+0.2.1-rc.2 契约包上（该契约包自 rc.2 起逐字节未变，已对 rc.5 逐项核实）。它的 peer 范围同时保留 `0.1.7-rc.2`、`0.2.0-rc.2` 与 `0.2.1-alpha.x`。搜索插件只增加
 第三方 provider；关闭总开关会写回内置 provider，0.2.1 新增的内置 `web-deepseek-api` 与本插件互不影响。
 
 ### 修改插件后页面没有变化

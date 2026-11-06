@@ -164,12 +164,13 @@ codegraph init -i
 
 ### The MCP server is slow on first launch
 
-CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run downloads the package; later runs use the local cache. All three versions are pinned in `dsh-bundle-mcp-toolkit/patch.yml` (CodeGraph `@colbymchenry/codegraph@1.6.2`, Context7 `@upstash/context7-mcp@4.3.0`, Browser-Use `browser-use==0.13.11`), so startup never re-resolves the latest release over the network; edit the versions there to upgrade.
+CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run downloads the package; later runs use the local cache. All three versions are pinned in `dsh-bundle-mcp-toolkit/patch.yml` (CodeGraph `@colbymchenry/codegraph@1.6.2`, Context7 `@upstash/context7-mcp@4.5.0`, Browser-Use `browser-use==0.13.14`), so startup never re-resolves the latest release over the network; edit the versions there to upgrade.
 
 ### Which DSH versions are supported
 
-All three bundles are adapted to DSH **0.2.1-rc.2** (current latest): the host halves mount, and
-`dsh-web-search`'s tests run directly against the 0.2.1-rc.2 contracts. Its peer range also keeps
+All three bundles are adapted to DSH **0.2.1-rc.5** (current latest): the host halves mount, and
+`dsh-web-search`'s tests run directly against the 0.2.1-rc.2 contract packages (byte-identical through
+rc.5, verified item by item). Its peer range also keeps
 `0.1.7-rc.2`, `0.2.0-rc.2`, and `0.2.1-alpha.x`. The search plugin only adds a third-party provider;
 turning the master switch off writes a built-in provider back, so 0.2.1's built-in
 `web-deepseek-api` and this bundle do not interfere.

@@ -23,11 +23,11 @@
         serverName: context7
         transport: stdio
         command: npx
-        args: ['-y', '@upstash/context7-mcp@4.3.0']
+        args: ['-y', '@upstash/context7-mcp@4.5.0']
     - id: mcp-browser-use
       name: '@deepseek-ai/dsh-mcp-client'
       config:
         serverName: browser-use
         transport: stdio
         command: uvx
-        args: ['--python', '3.12', 'browser-use==0.13.11', '--cli-mcp']
+        args: ['--python', '3.12', 'browser-use==0.13.14', '--cli-mcp']
