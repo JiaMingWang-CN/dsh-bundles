@@ -168,10 +168,10 @@ CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run do
 
 ### Which DSH versions are supported
 
-All three bundles are adapted to DSH **0.2.1-rc.5** (current latest): the host halves mount, and
-`dsh-web-search`'s tests run directly against the 0.2.1-rc.2 contract packages (byte-identical through
-rc.5, verified item by item). Its peer range also keeps
-`0.1.7-rc.2`, `0.2.0-rc.2`, and `0.2.1-alpha.x`. The search plugin only adds a third-party provider;
+All three bundles are adapted to DSH **0.2.2-rc.1** (current latest): the host halves mount, and the
+tests of `dsh-web-search` and `dsh-client-ui-task-notify` run directly against the 0.2.2-rc.1 contract
+packages. Its peer range also keeps
+`0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-alpha.x`, and `0.2.2-rc.1`. The search plugin only adds a third-party provider;
 turning the master switch off writes a built-in provider back, so 0.2.1's built-in
 `web-deepseek-api` and this bundle do not interfere.
 

@@ -168,8 +168,8 @@ CodeGraph 与 Context7 使用 `npx -y`，Browser-Use 使用 `uvx`。第一次运
 
 ### 支持哪些 DSH 版本
 
-三个 bundle 均已适配 DSH **0.2.1-rc.5**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 的单测直接跑在
-0.2.1-rc.2 契约包上（该契约包自 rc.2 起逐字节未变，已对 rc.5 逐项核实）。它的 peer 范围同时保留 `0.1.7-rc.2`、`0.2.0-rc.2` 与 `0.2.1-alpha.x`。搜索插件只增加
+三个 bundle 均已适配 DSH **0.2.2-rc.1**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 与 `dsh-client-ui-task-notify` 的单测直接跑在
+0.2.2-rc.1 契约包上。它的 peer 范围同时保留 `0.1.7-rc.2`、`0.2.0-rc.2`、`0.2.1-alpha.x` 与 `0.2.2-rc.1`。搜索插件只增加
 第三方 provider；关闭总开关会写回内置 provider，0.2.1 新增的内置 `web-deepseek-api` 与本插件互不影响。
 
 ### 修改插件后页面没有变化
