@@ -38,6 +38,15 @@ test("queue survives reload until complete", async (t) => {
 	assert.equal(third.watermark("s1"), 40);
 });
 
+test("complete never lowers a watermark", async (t) => {
+	const state = await loaded(await freshRoot(t));
+	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 1, seq: 50 });
+	await state.complete(["s1"]);
+	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 2, seq: 30 });
+	await state.complete(["s1"]);
+	assert.equal(state.watermark("s1"), 50);
+});
+
 test("enqueue dedupes by sessionId keeping latest seq", async (t) => {
 	const state = await loaded(await freshRoot(t));
 	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 10, seq: 40 });

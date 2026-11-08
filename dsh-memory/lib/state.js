@@ -83,7 +83,7 @@ export class DreamState {
 	complete(sessionIds) {
 		const done = new Set(sessionIds);
 		return this.persist(() => {
-			for (const job of this.data.queue) if (done.has(job.sessionId)) this.data.watermarks[job.sessionId] = job.seq;
+			for (const job of this.data.queue) if (done.has(job.sessionId)) this.data.watermarks[job.sessionId] = Math.max(job.seq, this.data.watermarks[job.sessionId] ?? 0);
 			this.data.queue = this.data.queue.filter((job) => !done.has(job.sessionId));
 		});
 	}

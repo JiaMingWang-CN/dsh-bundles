@@ -13,16 +13,25 @@
  * Design: docs/specs/2026-11-08-agent-memory-design.md
  */
 import z from "@deepseek-ai/schemastery";
+import { join } from "node:path";
+import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import { resolveMemoryRoot } from "./paths.js";
 import { MemoryStore } from "./store.js";
 import { installMemoryTools } from "./tools.js";
 import { installIndexInjection } from "./inject.js";
+import { DreamState } from "./state.js";
+import { installTrigger } from "./trigger.js";
+import { runDream } from "./dream.js";
+import { DreamRunner, reconcile, pruneDreamSessions } from "./runner.js";
 
 /** Stable Cordis plugin name; also the settings namespace. */
 const name = "memory";
 
 /** Host services this plugin needs. */
-const inject = ["tools", "systemPrompt"];
+const inject = ["tools", "systemPrompt", "agents", "sessionQuery"];
+
+/** Delay before the startup scan for sessions that ended unnoticed. */
+const RECONCILE_DELAY_MS = 30_000;
 
 /** Status snapshot shown on the settings page before the first run. */
 const EMPTY_STATUS = { paused: null, running: null, pendingCount: 0, log: [] };
@@ -47,10 +56,37 @@ const Config = z.object({
  * @param ctx - host plugin context.
  * @param config - live volatile config reference.
  */
-function apply(ctx, config) {
-	const store = new MemoryStore(resolveMemoryRoot());
+async function apply(ctx, config) {
+	const root = resolveMemoryRoot();
+	const store = new MemoryStore(root);
 	installMemoryTools(ctx, store, config);
 	installIndexInjection(ctx, store, config);
+
+	const state = new DreamState(root);
+	await state.load();
+	const runner = new DreamRunner({
+		state,
+		config,
+		runDream: (job) => runDream(ctx, { ...job, store }),
+		resolveSelection: () => {
+			const provider = config.dreamProvider.get();
+			const model = config.dreamModel.get();
+			if (provider !== "" && model !== "") return { provider, model };
+			return ctx.get("agentDefaultModel")?.currentSelection();
+		},
+		afterRun: () => pruneDreamSessions(state, join(resolveDshHome(), "sessions"))
+	});
+	installTrigger(ctx, {
+		idleMs: () => config.idleMinutes.get() * 60_000,
+		onEnded: (info) => {
+			runner.onSessionEnded(info).catch((error) => ctx.logger.warn("memory: could not queue session %s: %s", info.sessionId, error?.message));
+		}
+	});
+	const timer = setTimeout(() => {
+		if (!config.enabled.get()) return;
+		reconcile(ctx.sessionQuery, state).then(() => runner.emit(), (error) => ctx.logger.warn("memory: startup scan failed: %s", error?.message));
+	}, RECONCILE_DELAY_MS);
+	ctx.effect(() => () => clearTimeout(timer));
 }
 
 export { apply, inject, name, Config, EMPTY_STATUS };
