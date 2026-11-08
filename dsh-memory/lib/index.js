@@ -25,6 +25,7 @@ import { runDream } from "./dream.js";
 import { DreamRunner, reconcile, pruneDreamSessions } from "./runner.js";
 import { installDreamCommand } from "./command.js";
 import { createStatusPublisher } from "./status.js";
+import { resolveSelection } from "./selection.js";
 
 /** Stable Cordis plugin name; also the settings namespace. */
 const name = "memory";
@@ -49,6 +50,7 @@ const Config = z.object({
 	indexMaxBytes: z.natural().min(512).default(4096).volatile(),
 	dreamProvider: z.string().default("").volatile(),
 	dreamModel: z.string().default("").volatile(),
+	dreamEffort: z.string().default("").volatile(),
 	status: z.any().default(EMPTY_STATUS).volatile(),
 	dreamRequest: z.string().default("").volatile()
 });
@@ -75,12 +77,7 @@ async function apply(ctx, config) {
 		config,
 		onStatus: (snapshot) => status.publish(snapshot),
 		runDream: (job) => runDream(ctx, { ...job, store }),
-		resolveSelection: () => {
-			const provider = config.dreamProvider.get();
-			const model = config.dreamModel.get();
-			if (provider !== "" && model !== "") return { provider, model };
-			return ctx.get("agentDefaultModel")?.currentSelection();
-		},
+		resolveSelection: () => resolveSelection(config, ctx.get("agentDefaultModel")),
 		afterRun: () => pruneDreamSessions(state, join(resolveDshHome(), "sessions"))
 	});
 	ctx.effect(() => () => runner.stop());

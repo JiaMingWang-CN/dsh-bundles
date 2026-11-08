@@ -127,17 +127,47 @@ test("modelOptions keeps a saved model that is no longer in the catalog, marked 
 	assert.equal(options.at(-1).value, plugin.modelKey("gone", "old-model"));
 });
 
+const REASONING_GROUPS = [
+	{ id: "deepseek-official", name: "DeepSeek", models: [
+		{ id: "deepseek-pro", name: "DeepSeek Pro", reasoning: { defaultEffort: "high", efforts: [{ id: "low", name: "低" }, { id: "high", name: "高" }] } },
+		{ id: "deepseek-lite", name: "DeepSeek Lite" }
+	] }
+];
+
+test("effortOptions follow the chosen model's supported levels", async () => {
+	const plugin = await load();
+	const pro = plugin.effortOptions(REASONING_GROUPS, "deepseek-official", "deepseek-pro", "");
+	assert.equal(pro.disabled, false);
+	assert.deepEqual(pro.options.map((option) => [option.value, option.label]), [["", "模型默认（高）"], ["low", "低"], ["high", "高"]]);
+	const lite = plugin.effortOptions(REASONING_GROUPS, "deepseek-official", "deepseek-lite", "");
+	assert.equal(lite.disabled, true);
+	assert.match(lite.options[0].label, /不支持/);
+	const followDefault = plugin.effortOptions(REASONING_GROUPS, "", "", "");
+	assert.equal(followDefault.disabled, true);
+	assert.match(followDefault.options[0].label, /跟随默认/);
+	const stale = plugin.effortOptions(REASONING_GROUPS, "deepseek-official", "deepseek-pro", "max");
+	assert.match(stale.options.at(-1).label, /不可用：max/);
+});
+
+test("choosing an effort writes dreamEffort", async () => {
+	const plugin = await load();
+	const host = fakeHost({ ...VALUE, dreamProvider: "deepseek-official", dreamModel: "deepseek-pro" });
+	const [select] = find(plugin.SettingsPage({ host }), (node) => node.type === "select" && node.props["aria-label"] === "思考强度");
+	select.props.onChange({ target: { value: "low" } });
+	assert.deepEqual(host.writes.at(-1), ["dreamEffort", "low"]);
+});
+
 test("choosing a model in the select writes provider and model together", async () => {
 	const plugin = await load();
 	const host = fakeHost({ ...VALUE, dreamProvider: "mimo", dreamModel: "mimo-v2" });
-	const [select] = find(plugin.SettingsPage({ host }), (node) => node.type === "select");
-	assert.equal(select.props["aria-label"], "dreaming 模型");
+	const [select] = find(plugin.SettingsPage({ host }), (node) => node.type === "select" && node.props["aria-label"] === "dreaming 模型");
 	assert.equal(select.props.value, plugin.modelKey("mimo", "mimo-v2"));
 	select.props.onChange({ target: { value: plugin.modelKey("deepseek-official", "deepseek-pro") } });
 	assert.deepEqual(host.mutations.at(-1), [
 		{ op: "set", path: ["dreamProvider"], value: "deepseek-official" },
-		{ op: "set", path: ["dreamModel"], value: "deepseek-pro" }
+		{ op: "set", path: ["dreamModel"], value: "deepseek-pro" },
+		{ op: "set", path: ["dreamEffort"], value: "" }
 	]);
 	select.props.onChange({ target: { value: "" } });
-	assert.deepEqual(host.mutations.at(-1).map((op) => op.value), ["", ""]);
+	assert.deepEqual(host.mutations.at(-1).map((op) => op.value), ["", "", ""]);
 });
