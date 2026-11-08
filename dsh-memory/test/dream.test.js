@@ -8,7 +8,9 @@ import { runDream, transcriptTools, renderTranscript } from "../lib/dream.js";
 
 const CWD = "C:\\Programs\\demo";
 
-const userMsg = (seq, text, kind = "user") => ({ seq, type: "user/message", data: { message: { role: "user", content: [{ type: "text", text }], source: { kind } } } });
+// Shapes match real DSH 0.2.2-rc.1 logs: a user/message event carries the message itself as `data`;
+// assistant/message and tool/result wrap it in `data.message`.
+const userMsg = (seq, text, kind = "user") => ({ seq, type: "user/message", data: { role: "user", content: [{ type: "text", text }], source: { kind } } });
 const assistantMsg = (seq, text) => ({ seq, type: "assistant/message", data: { message: { role: "assistant", content: [{ type: "reasoning", text: "hidden" }, { type: "text", text }] } } });
 const toolResult = (seq, text, isError) => ({ seq, type: "tool/result", data: { message: { role: "tool", content: [{ type: "text", text }], ...(isError ? { isError: true } : {}) } } });
 

@@ -46,6 +46,7 @@ Do these, in priority order:
 5. Capture what the sessions taught but the memory missed: mistakes and how they were fixed, approaches that worked, verified rules, pitfalls. For each, record why it holds and the evidence (session id and seq).
 
 Rules:
+- Weigh evidence by its source. A fact stated by the user in a transcript counts as evidence: record it as user-stated with the session id and seq, and do not downgrade or delete it for lack of a tool check. Only a claim made by the agent without a tool result or a user statement behind it is unsupported: mark it unverified or remove it. When a later transcript contradicts a user-stated fact, the later transcript wins; correct the note and cite both.
 - Record only what the environment cannot give back. Never store re-readable state such as code, file contents, git history or command output.
 - User partition: change or delete a user-level note only when the transcripts show it does not hold in general. If it merely does not apply to this project, keep it and record the exception in the project partition.
 - Writes use versions from memory_read. If a write reports a conflict, the note was changed by a live session: skip that note and move on.

@@ -48,8 +48,9 @@ function blockText(block, max) {
 export function renderTranscript(events) {
 	const lines = [];
 	for (const event of events) {
-		const message = event.data?.message;
-		if (message === undefined) continue;
+		/* A user/message event carries the message itself as `data`; assistant/message and tool/result wrap it in `data.message`. */
+		const message = event.type === "user/message" ? event.data : event.data?.message;
+		if (message === undefined || message === null) continue;
 		const content = Array.isArray(message.content) ? message.content : [];
 		if (event.type === "user/message") {
 			if (message.source?.kind !== "user") continue;
