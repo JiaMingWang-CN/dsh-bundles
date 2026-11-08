@@ -145,6 +145,28 @@ test("skips sessions whose seq <= watermark", async (t) => {
 	assert.equal(h.calls.length, 1);
 });
 
+test("a run failing because the plugin is shutting down neither pauses nor logs; the batch stays queued", async (t) => {
+	const h = await setup(t, { outcomes: [{ ok: false, error: 'cannot get required service "agents" in inactive context' }] });
+	let release;
+	h.gates.push(new Promise((resolve) => { release = resolve; }));
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	h.runner.stop();
+	release();
+	await h.runner.idle();
+	assert.equal(h.state.paused, null);
+	assert.deepEqual(h.state.recentLog(5), []);
+	assert.deepEqual(h.state.pending().map((job) => job.sessionId), ["s1"]);
+});
+
+test("a stopped runner still queues endings but starts no run", async (t) => {
+	const h = await setup(t);
+	h.runner.stop();
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.runner.idle();
+	assert.equal(h.calls.length, 0);
+	assert.deepEqual(h.state.pending().map((job) => job.sessionId), ["s1"]);
+});
+
 test("enabled=false ignores session endings entirely", async (t) => {
 	const h = await setup(t, { enabled: false });
 	await h.runner.onSessionEnded(ended("s1", A, 1));

@@ -36,6 +36,17 @@ export class DreamRunner {
 		Object.assign(this, { state, runDream, resolveSelection, config, now, onStatus, afterRun });
 		this.chain = Promise.resolve();
 		this.running = null;
+		this.stopped = false;
+	}
+
+	/**
+	 * Called when the plugin unloads (including app shutdown, which also
+	 * disposes sessions and so fires session endings). Endings still queue;
+	 * no new run starts, and a run that fails because services are going away
+	 * is neither logged nor allowed to pause auto dreaming.
+	 */
+	stop() {
+		this.stopped = true;
 	}
 
 	/** Snapshot for the settings page. */
@@ -118,7 +129,7 @@ export class DreamRunner {
 		const stale = queued.filter((job) => job.seq <= this.state.watermark(job.sessionId));
 		if (stale.length > 0) await this.state.complete(stale.map((job) => job.sessionId));
 		const jobs = queued.filter((job) => job.seq > this.state.watermark(job.sessionId) && (cwd === undefined || job.cwd === cwd));
-		if (jobs.length === 0) return "empty";
+		if (jobs.length === 0 || this.stopped) return "empty";
 		const groupCwd = jobs[0].cwd;
 		const sessionIds = jobs.filter((job) => job.cwd === groupCwd).map((job) => job.sessionId);
 		this.running = { cwd: groupCwd };
@@ -131,6 +142,7 @@ export class DreamRunner {
 		} finally {
 			this.running = null;
 		}
+		if (!result.ok && this.stopped) return "empty";
 		const entry = {
 			at: this.now(),
 			cwd: groupCwd,

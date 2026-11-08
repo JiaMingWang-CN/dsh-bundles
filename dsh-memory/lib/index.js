@@ -88,6 +88,7 @@ async function apply(ctx, config) {
 		},
 		afterRun: () => pruneDreamSessions(state, join(resolveDshHome(), "sessions"))
 	});
+	ctx.effect(() => () => runner.stop());
 	installTrigger(ctx, {
 		idleMs: () => config.idleMinutes.get() * 60_000,
 		onEnded: (info) => {
