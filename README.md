@@ -2,7 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 + Browser-Use MCP 工具集，以及可一键交回内置的第三方网页搜索。
+一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 + Browser-Use MCP 工具集、可一键交回内置的第三方网页搜索，以及带自动 dreaming 的跨会话记忆。
 
 每个目录都是一个可单独安装的 bundle。只安装需要的部分即可。
 
@@ -49,6 +49,15 @@ CodeGraph 与 Context7 由 `npx -y` 启动，Browser-Use 由 `uvx` 启动，都�
 - 关闭总开关：交回 DSH 内置 DeepSeek 搜索（Messages 或新版 Search API，按上次选择恢复）；
 - API Key 经 credentials 域保存，不落 profile 设置文件明文。
 
+### 跨会话记忆
+
+`dsh-memory` 让 agent 跨会话记住犯过的错、做成功的路子和验证过的规则：
+
+- 记忆分项目级与用户级，每个会话开始时注入两份限容 4 KB 的索引，正文按需读取；
+- 会话结束后自动 dreaming：后台隐藏 agent 对照会话记录纠错、合并、精简记忆，全局串行；
+- 设置侧栏“记忆”页可查看运行日志、待处理数并“立即 dream”；失败会暂停自动 dreaming，修好模型后手动补跑即恢复；
+- `/dream` 立即整理当前项目；dreaming 消耗自己的模型 token，可在设置页关闭自动运行。
+
 ## 快速安装
 
 ### 前置条件
@@ -71,6 +80,9 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bund
 
 # 第三方网页搜索（Tavily / 模型自带联网，可一键交回内置）
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
+
+# 跨会话记忆 + 自动 dreaming
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-memory"
 ```
 
 确认 bundle 已进入 web profile：
@@ -121,6 +133,10 @@ Browser-Use 通过 `uvx` 启动，首次运行会下载 Python 包；需要本�
 3. 选择第三方后端（Tavily / 模型自带联网），填入 API Key 并保存；需要时关闭顶部总开关交回内置。
 
 切换即时生效、无需重启；各引擎的开通与计费说明见 `dsh-web-search/README.md`。
+
+### 使用跨会话记忆
+
+安装后默认开启，agent 会自行读写记忆。打开“设置 → 记忆”可以关闭自动 dreaming、调整空闲阈值或指定 dreaming 模型；在会话里输入 `/dream` 可立即整理当前项目。记忆是 `~/.dsh/memory/` 下的普通 Markdown，可直接查看和编辑。说明见 `dsh-memory/README.md`。
 
 ### 使用 MCP 工具
 
@@ -194,6 +210,7 @@ pnpm install
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-memory
 ```
 
 运行测试（网页搜索带 `node --test` 测试）：
