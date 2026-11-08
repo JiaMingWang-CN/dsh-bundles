@@ -1,0 +1,9 @@
+# Cross-session agent memory: notes kept per project and per user, an INDEX
+# snapshot injected into every session, and automatic "dreaming" after a
+# session ends. Every line is a declarative loader patch — nothing in DSH
+# itself is modified, and removing this bundle restores the shipped behavior.
+# Memory files live under <DSH home>/memory/ and are left in place on
+# uninstall so a reinstall keeps what the agent learned.
+- insert:
+    - id: memory
+      name: 'dsh-memory'
