@@ -47,6 +47,7 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-memory
 - 只适配 DSH **0.2.2-rc.1**：依赖的会话、agent、提示词接口仍是 rc 版本，升级 DSH 后需要重新验证。
 - dreaming 使用的隐藏会话保存在 `~/.dsh/sessions/_no-cwd/`，插件只保留最近 50 个，更早的由插件自行删除；它们不会出现在会话列表和搜索里。
 - dreaming 会话也会触发 DSH 的标题生成，带来少量额外 token。
+- 启动时只为最近 7 天内**创建**的会话补登漏掉的结束事件；更早创建、仍在使用的会话，若宿主崩溃时有未整理的内容，要等它下次结束或运行 `/dream` 才会处理。
 
 ## 开发
 

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { encodeCwd, partitionDir, resolveEntry } from "../lib/paths.js";
+import { encodeCwd, partitionDir, resolveEntry, sameProject } from "../lib/paths.js";
 
 test("encodeCwd matches DSH session directory names", () => {
 	assert.equal(encodeCwd("C:\\Programs\\dsh-bundles"), "--C-Programs-dsh-bundles--");
@@ -17,6 +17,12 @@ test("encodeCwd normalizes drive case, separators and trailing separators", () =
 
 test("encodeCwd escapes unsafe characters like DSH does", () => {
 	assert.equal(encodeCwd("C:\\My Repo\\项目"), "--C-My~0020Repo-~9879~76EE--");
+});
+
+test("sameProject ignores case only on Windows", () => {
+	assert.equal(sameProject("C:\\Programs\\x", "c:/programs/X\\", "win32"), true);
+	assert.equal(sameProject("/home/me/Repo", "/home/me/repo", "linux"), false);
+	assert.equal(sameProject("/home/me/repo/", "/home/me/repo", "linux"), true);
 });
 
 test("partitionDir separates user and per-project partitions", () => {

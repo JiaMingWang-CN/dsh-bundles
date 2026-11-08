@@ -88,7 +88,7 @@ async function storeFor(t) {
 }
 
 test("creates hidden root agent with restricted tools", async (t) => {
-	const fake = fakeAgents();
+	const fake = fakeAgents({ turnEnd: { kind: "completed" } });
 	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], selection: { provider: "p", model: "m" }, store: await storeFor(t), indexMaxBytes: 4096 });
 	assert.equal(result.ok, true);
 	assert.deepEqual(fake.record.options.meta, { origin: "subagent" });
@@ -108,6 +108,15 @@ test("reports failure when the turn ends on model error, and always disposes", a
 	assert.equal(result.ok, false);
 	assert.match(result.error, /401 Unauthorized/);
 	assert.equal(fake.record.disposed, true);
+});
+
+test("only a completed turn counts as success", async (t) => {
+	for (const kind of ["max-tokens", "blocked", "aborted"]) {
+		const fake = fakeAgents({ turnEnd: { kind } });
+		const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+		assert.equal(result.ok, false, kind);
+		assert.match(result.error, new RegExp(kind));
+	}
 });
 
 test("reports failure when agents.create throws", async (t) => {

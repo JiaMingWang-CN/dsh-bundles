@@ -15,7 +15,7 @@
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isEligible } from "./trigger.js";
-import { encodeCwd } from "./paths.js";
+import { sameProject } from "./paths.js";
 
 const DAY_MS = 86_400_000;
 const STATUS_LOG_SIZE = 20;
@@ -83,10 +83,15 @@ export class DreamRunner {
 		this.scheduleAuto();
 	}
 
+	/** Whether automatic dreaming may start a run right now. */
+	autoAllowed() {
+		return !this.stopped && this.config.enabled.get() && this.config.autoDream.get() && this.state.paused === null;
+	}
+
 	scheduleAuto() {
-		if (!this.config.autoDream.get() || this.state.paused !== null) return;
+		if (!this.autoAllowed()) return;
 		this.schedule(async () => {
-			if (this.state.paused !== null || !this.config.autoDream.get()) return;
+			if (!this.autoAllowed()) return;
 			const result = await this.runNextGroup("auto", {}, []);
 			if (result === "ran") this.scheduleAuto();
 		});
@@ -100,9 +105,9 @@ export class DreamRunner {
 	runManual({ cwd, excludeSessionId } = {}) {
 		return this.schedule(async () => {
 			const runs = [];
-			if (!(await this.drain("manual", { cwd, excludeSessionId }, runs))) return { ok: false, runs };
+			if (!(await this.drain("manual", { cwd, excludeSessionId }, runs)) || this.stopped) return { ok: false, runs };
 			if (this.state.paused !== null) {
-				if (!(await this.drain("manual", { excludeSessionId }, runs))) return { ok: false, runs };
+				if (!(await this.drain("manual", { excludeSessionId }, runs)) || this.stopped) return { ok: false, runs };
 				await this.state.setPaused(null);
 				this.emit();
 				this.scheduleAuto();
@@ -127,11 +132,13 @@ export class DreamRunner {
 	async runNextGroup(trigger, { cwd, excludeSessionId }, runs) {
 		const queued = this.state.pending().filter((job) => job.sessionId !== excludeSessionId);
 		const stale = queued.filter((job) => job.seq <= this.state.watermark(job.sessionId));
-		if (stale.length > 0) await this.state.complete(stale.map((job) => job.sessionId));
-		const jobs = queued.filter((job) => job.seq > this.state.watermark(job.sessionId) && (cwd === undefined || job.cwd === cwd));
+		if (stale.length > 0) await this.state.complete(stale);
+		const jobs = queued.filter((job) => job.seq > this.state.watermark(job.sessionId) && (cwd === undefined || sameProject(job.cwd, cwd)));
 		if (jobs.length === 0 || this.stopped) return "empty";
 		const groupCwd = jobs[0].cwd;
-		const sessionIds = jobs.filter((job) => job.cwd === groupCwd).map((job) => job.sessionId);
+		/* Capture the seqs this run covers: a session that ends again meanwhile is re-queued with a higher seq and must stay queued. */
+		const batch = jobs.filter((job) => sameProject(job.cwd, groupCwd)).map(({ sessionId, seq }) => ({ sessionId, seq }));
+		const sessionIds = batch.map((job) => job.sessionId);
 		this.running = { cwd: groupCwd };
 		this.emit();
 		let result;
@@ -142,6 +149,7 @@ export class DreamRunner {
 		} finally {
 			this.running = null;
 		}
+		if (result.dreamSessionId) await this.state.recordDreamSession(result.dreamSessionId);
 		if (!result.ok && this.stopped) return "empty";
 		const entry = {
 			at: this.now(),
@@ -154,7 +162,7 @@ export class DreamRunner {
 		};
 		await this.state.appendLog(entry);
 		runs.push(entry);
-		if (result.ok) await this.state.complete(sessionIds);
+		if (result.ok) await this.state.complete(batch);
 		else await this.state.setPaused({ since: entry.at, reason: result.error });
 		this.emit();
 		await this.afterRun?.().catch(() => {});
@@ -172,11 +180,10 @@ export class DreamRunner {
  */
 export async function reconcile(sessionQuery, state, { now = Date.now, cwd, excludeSessionId, maxAgeMs = 7 * DAY_MS } = {}) {
 	const queued = new Set(state.pending().map((job) => job.sessionId));
-	const key = cwd === undefined ? undefined : encodeCwd(cwd);
 	const added = [];
 	for (const { header, live } of await sessionQuery.listSessions()) {
 		if (live || !isEligible(header) || header.id === excludeSessionId || queued.has(header.id)) continue;
-		if (key !== undefined && encodeCwd(header.cwd) !== key) continue;
+		if (cwd !== undefined && !sameProject(header.cwd, cwd)) continue;
 		if ((header.createdAt ?? 0) < now() - maxAgeMs) continue;
 		const events = await sessionQuery.listEvents(header.id);
 		const last = events.at(-1);
@@ -190,13 +197,15 @@ export async function reconcile(sessionQuery, state, { now = Date.now, cwd, excl
 
 /**
  * Delete the stored sessions of old dreaming runs, keeping the newest `keep`.
- * Only ids recorded in this plugin's log are touched.
+ * Only ids this plugin recorded as its own dreaming sessions are touched.
  * @param {import("./state.js").DreamState} state
  * @param {string} sessionsRoot - `<DSH home>/sessions`.
  */
 export async function pruneDreamSessions(state, sessionsRoot, keep = 50) {
-	const ids = [...new Set(state.recentLog(Infinity).map((entry) => entry.dreamSessionId).filter((id) => typeof id === "string" && /^session-[\w-]+$/.test(id)))];
-	for (const id of ids.slice(0, Math.max(0, ids.length - keep))) {
-		await rm(join(sessionsRoot, "_no-cwd", id), { recursive: true, force: true });
+	const ids = state.dreamSessions();
+	const old = ids.slice(0, Math.max(0, ids.length - keep));
+	for (const id of old) {
+		if (/^session-[\w-]+$/.test(id)) await rm(join(sessionsRoot, "_no-cwd", id), { recursive: true, force: true });
 	}
+	if (old.length > 0) await state.forgetDreamSessions(old);
 }

@@ -83,6 +83,20 @@ test("readIndex returns INDEX.md content or null", async (t) => {
 	assert.equal(await store.readIndex("project", CWD), "- [a](a.md) — x");
 });
 
+test("interleaved writes with the same version: exactly one wins, the other conflicts", async (t) => {
+	const { store, cleanup } = await fresh();
+	t.after(cleanup);
+	const { version } = await store.write("project", CWD, "a.md", "base", null);
+	const results = await Promise.allSettled([
+		store.write("project", CWD, "a.md", "from session", version),
+		store.write("project", CWD, "a.md", "from dreaming", version)
+	]);
+	assert.deepEqual(results.map((r) => r.status).sort(), ["fulfilled", "rejected"]);
+	assert.equal(results.find((r) => r.status === "rejected").reason.code, "MEMORY_CONFLICT");
+	const winner = results[0].status === "fulfilled" ? "from session" : "from dreaming";
+	assert.equal((await store.read("project", CWD, "a.md")).content, winner);
+});
+
 test("write leaves no temporary files behind", async (t) => {
 	const { root, store, cleanup } = await fresh();
 	t.after(cleanup);

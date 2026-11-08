@@ -40,8 +40,8 @@ export class DreamState {
 		this.dir = join(root, ".state");
 		this.stateFile = join(this.dir, "state.json");
 		this.logFile = join(this.dir, "log.jsonl");
-		/** @type {{ queue: Job[], watermarks: Record<string, number>, paused: { since: number, reason: string } | null }} */
-		this.data = { queue: [], watermarks: {}, paused: null };
+		/** @type {{ queue: Job[], watermarks: Record<string, number>, paused: { since: number, reason: string } | null, dreamSessions?: string[] }} */
+		this.data = { queue: [], watermarks: {}, paused: null, dreamSessions: [] };
 		/** @type {LogEntry[]} */
 		this.log = [];
 		this.chain = Promise.resolve();
@@ -52,7 +52,14 @@ export class DreamState {
 		const raw = await readIfExists(this.stateFile);
 		if (raw !== null) this.data = { queue: [], watermarks: {}, paused: null, ...JSON.parse(raw) };
 		const log = await readIfExists(this.logFile);
-		this.log = log === null ? [] : log.split("\n").filter((line) => line.trim() !== "").map((line) => JSON.parse(line)).slice(-LOG_LIMIT);
+		/* An append torn by a crash leaves a partial last line; skip unparsable lines rather than refuse to load. */
+		this.log = log === null ? [] : log.split("\n").flatMap((line) => {
+			try {
+				return line.trim() === "" ? [] : [JSON.parse(line)];
+			} catch {
+				return [];
+			}
+		}).slice(-LOG_LIMIT);
 	}
 
 	/** Run one mutation after every earlier one, then persist. */
@@ -79,12 +86,36 @@ export class DreamState {
 		return this.data.queue.filter((job) => cwd === undefined || job.cwd === cwd).sort((a, b) => a.endedAt - b.endedAt).map((job) => ({ ...job }));
 	}
 
-	/** Dequeue sessions after a successful run and advance their watermarks. */
-	complete(sessionIds) {
-		const done = new Set(sessionIds);
+	/**
+	 * Advance watermarks to the seqs a run actually covered, and dequeue those
+	 * sessions unless they were re-queued with newer events meanwhile.
+	 * @param {Array<{ sessionId: string, seq: number }>} covered - the batch as captured when the run started.
+	 */
+	complete(covered) {
+		const seqs = new Map(covered.map((job) => [job.sessionId, job.seq]));
 		return this.persist(() => {
-			for (const job of this.data.queue) if (done.has(job.sessionId)) this.data.watermarks[job.sessionId] = Math.max(job.seq, this.data.watermarks[job.sessionId] ?? 0);
-			this.data.queue = this.data.queue.filter((job) => !done.has(job.sessionId));
+			for (const [sessionId, seq] of seqs) this.data.watermarks[sessionId] = Math.max(seq, this.data.watermarks[sessionId] ?? 0);
+			this.data.queue = this.data.queue.filter((job) => !seqs.has(job.sessionId) || job.seq > seqs.get(job.sessionId));
+		});
+	}
+
+	/** @returns {string[]} ids of the hidden dreaming sessions created so far, oldest first. */
+	dreamSessions() {
+		return [...(this.data.dreamSessions ?? [])];
+	}
+
+	/** Remember a dreaming session so it can be pruned later. */
+	recordDreamSession(id) {
+		return this.persist(() => {
+			this.data.dreamSessions = [...(this.data.dreamSessions ?? []), id];
+		});
+	}
+
+	/** Drop pruned dreaming sessions from the record. */
+	forgetDreamSessions(ids) {
+		const gone = new Set(ids);
+		return this.persist(() => {
+			this.data.dreamSessions = (this.data.dreamSessions ?? []).filter((id) => !gone.has(id));
 		});
 	}
 

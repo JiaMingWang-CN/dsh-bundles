@@ -31,7 +31,7 @@ test("queue survives reload until complete", async (t) => {
 	await first.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 10, seq: 40 });
 	const second = await loaded(root);
 	assert.deepEqual(second.pending().map((job) => job.sessionId), ["s1"]);
-	await second.complete(["s1"]);
+	await second.complete([{ sessionId: "s1", seq: 40 }]);
 	assert.equal(second.watermark("s1"), 40);
 	const third = await loaded(root);
 	assert.deepEqual(third.pending(), []);
@@ -41,10 +41,40 @@ test("queue survives reload until complete", async (t) => {
 test("complete never lowers a watermark", async (t) => {
 	const state = await loaded(await freshRoot(t));
 	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 1, seq: 50 });
-	await state.complete(["s1"]);
+	await state.complete([{ sessionId: "s1", seq: 50 }]);
 	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 2, seq: 30 });
-	await state.complete(["s1"]);
+	await state.complete([{ sessionId: "s1", seq: 30 }]);
 	assert.equal(state.watermark("s1"), 50);
+});
+
+test("complete keeps a session re-queued with newer events during the run", async (t) => {
+	const state = await loaded(await freshRoot(t));
+	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 1, seq: 100 });
+	const batch = state.pending().map(({ sessionId, seq }) => ({ sessionId, seq }));
+	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 2, seq: 200 });
+	await state.complete(batch);
+	assert.equal(state.watermark("s1"), 100);
+	assert.deepEqual(state.pending().map((job) => job.seq), [200]);
+});
+
+test("a torn log line is skipped instead of breaking load", async (t) => {
+	const root = await freshRoot(t);
+	const state = await loaded(root);
+	await state.appendLog({ at: 1, cwd: "C:\\a", sessionIds: [], ok: true, trigger: "auto" });
+	const { appendFile } = await import("node:fs/promises");
+	await appendFile(join(root, ".state", "log.jsonl"), '{"at":2,"cwd":"C:');
+	const reloaded = await loaded(root);
+	assert.deepEqual(reloaded.recentLog(5).map((entry) => entry.at), [1]);
+});
+
+test("dream sessions are tracked independently of the log window", async (t) => {
+	const root = await freshRoot(t);
+	const state = await loaded(root);
+	await state.recordDreamSession("session-a");
+	await state.recordDreamSession("session-b");
+	assert.deepEqual((await loaded(root)).dreamSessions(), ["session-a", "session-b"]);
+	await state.forgetDreamSessions(["session-a"]);
+	assert.deepEqual(state.dreamSessions(), ["session-b"]);
 });
 
 test("enqueue dedupes by sessionId keeping latest seq", async (t) => {

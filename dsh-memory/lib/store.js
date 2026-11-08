@@ -57,6 +57,24 @@ export class MemoryStore {
 	/** @param {string} root - memory root (see `resolveMemoryRoot`). */
 	constructor(root) {
 		this.root = root;
+		/** Per-file tail of the in-process write queue; sessions and dreaming share one process. */
+		this.locks = new Map();
+	}
+
+	/** Run `fn` after every earlier mutation of the same file, so check-then-rename is atomic in-process. */
+	async exclusive(file, fn) {
+		const previous = this.locks.get(file) ?? Promise.resolve();
+		let release;
+		const current = new Promise((resolve) => { release = resolve; });
+		const tail = previous.then(() => current);
+		this.locks.set(file, tail);
+		await previous;
+		try {
+			return await fn();
+		} finally {
+			release();
+			if (this.locks.get(file) === tail) this.locks.delete(file);
+		}
 	}
 
 	/** @returns {Promise<Array<{ path: string, bytes: number, version: string }>>} every note in the partition. */
@@ -99,20 +117,22 @@ export class MemoryStore {
 	 */
 	async write(scope, cwd, path, content, expectedVersion, tracker) {
 		const file = resolveEntry(partitionDir(this.root, scope, cwd), path);
-		const current = await readIfExists(file);
-		const currentVersion = current === null ? null : versionOf(current);
-		if (currentVersion !== expectedVersion) throw new MemoryConflictError(path, currentVersion);
-		await mkdir(dirname(file), { recursive: true });
-		const temp = join(dirname(file), `.${randomUUID()}.tmp`);
-		await writeFile(temp, content, "utf8");
-		try {
-			await rename(temp, file);
-		} catch (error) {
-			await rm(temp, { force: true });
-			throw error;
-		}
-		tracker?.record(current === null ? "created" : "modified", path);
-		return { version: versionOf(content) };
+		return this.exclusive(file, async () => {
+			const current = await readIfExists(file);
+			const currentVersion = current === null ? null : versionOf(current);
+			if (currentVersion !== expectedVersion) throw new MemoryConflictError(path, currentVersion);
+			await mkdir(dirname(file), { recursive: true });
+			const temp = join(dirname(file), `.${randomUUID()}.tmp`);
+			await writeFile(temp, content, "utf8");
+			try {
+				await rename(temp, file);
+			} catch (error) {
+				await rm(temp, { force: true });
+				throw error;
+			}
+			tracker?.record(current === null ? "created" : "modified", path);
+			return { version: versionOf(content) };
+		});
 	}
 
 	/**
@@ -122,11 +142,13 @@ export class MemoryStore {
 	 */
 	async remove(scope, cwd, path, expectedVersion, tracker) {
 		const file = resolveEntry(partitionDir(this.root, scope, cwd), path);
-		const current = await readIfExists(file);
-		const currentVersion = current === null ? null : versionOf(current);
-		if (currentVersion === null || currentVersion !== expectedVersion) throw new MemoryConflictError(path, currentVersion);
-		await unlink(file);
-		tracker?.record("deleted", path);
+		await this.exclusive(file, async () => {
+			const current = await readIfExists(file);
+			const currentVersion = current === null ? null : versionOf(current);
+			if (currentVersion === null || currentVersion !== expectedVersion) throw new MemoryConflictError(path, currentVersion);
+			await unlink(file);
+			tracker?.record("deleted", path);
+		});
 	}
 
 	/** @returns {Promise<string | null>} the partition's INDEX.md content, or null. */

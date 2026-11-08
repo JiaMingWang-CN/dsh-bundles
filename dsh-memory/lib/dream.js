@@ -11,16 +11,17 @@
  *   scoped registrations below stay visible;
  * - messages must be built with `createUserMessage()` (it sets `role`).
  *
- * Failure detection: the loop appends `turn/end` with
- * `reason.kind === "error"` (model/tool failure, `reason.error.message`) or
- * `"aborted"`; anything else, or no turn at all, decides the outcome.
+ * Outcome: the loop appends `turn/end` with `reason.kind` one of
+ * "completed", "error" (model/tool failure, `reason.error.message`),
+ * "aborted", "max-tokens" (output cut off) or "blocked". Only "completed"
+ * counts as success; a missing turn is a failure too.
  */
 import { randomUUID } from "node:crypto";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 import { createChangeTracker } from "./store.js";
 import { memoryTools } from "./tools.js";
-import { encodeCwd } from "./paths.js";
+import { sameProject } from "./paths.js";
 import { dreamPrompt } from "./prompt.js";
 
 const TOOL_RESULT_CHARS = 400;
@@ -79,12 +80,11 @@ const TEXT_OUTPUT = {
  * @param {{ cwd: string, sessionIds: string[] }} job
  */
 export function transcriptTools(ctx, { cwd, sessionIds }) {
-	const key = encodeCwd(cwd);
 	const cache = new Map();
 	const load = async (sessionId) => {
 		if (!cache.has(sessionId)) {
 			cache.set(sessionId, ctx.sessionQuery.readSession(sessionId).then(({ session, events }) => {
-				if (typeof session.cwd !== "string" || encodeCwd(session.cwd) !== key) throw new Error(`Session ${sessionId} belongs to another project; only this project's sessions can be read.`);
+				if (typeof session.cwd !== "string" || !sameProject(session.cwd, cwd)) throw new Error(`Session ${sessionId} belongs to another project; only this project's sessions can be read.`);
 				return renderTranscript(events).split("\n").filter((line) => line !== "");
 			}));
 		}
@@ -176,9 +176,9 @@ export async function runDream(ctx, { cwd, sessionIds, selection, store, indexMa
 		const turnEnd = [...agent.session.snapshotEvents(0)].reverse().find((event) => event.type === "turn/end");
 		const reason = turnEnd?.data?.reason;
 		if (turnEnd === undefined) return { ok: false, error: "dreaming agent did not finish a turn", dreamSessionId: sessionId };
+		if (reason?.kind === "completed") return { ok: true, changes: tracker.summary(), dreamSessionId: sessionId };
 		if (reason?.kind === "error") return { ok: false, error: reason.error?.message ?? "model error", dreamSessionId: sessionId };
-		if (reason?.kind === "aborted") return { ok: false, error: "dreaming was cancelled", dreamSessionId: sessionId };
-		return { ok: true, changes: tracker.summary(), dreamSessionId: sessionId };
+		return { ok: false, error: `dreaming turn ended with "${reason?.kind ?? "unknown"}"`, dreamSessionId: sessionId };
 	} catch (error) {
 		return { ok: false, error: error?.message ?? String(error), ...(handle ? { dreamSessionId: sessionId } : {}) };
 	} finally {

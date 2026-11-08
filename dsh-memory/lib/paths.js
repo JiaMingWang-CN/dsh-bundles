@@ -56,6 +56,19 @@ export function encodeCwd(cwd) {
 }
 
 /**
+ * Whether two project paths name the same project. Windows paths are
+ * case-insensitive, so the comparison ignores case there (the partition
+ * directories already coincide on a case-insensitive filesystem).
+ * @param {string} a
+ * @param {string} b
+ */
+export function sameProject(a, b, platform = process.platform) {
+	const left = encodeCwd(a);
+	const right = encodeCwd(b);
+	return platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
+
+/**
  * Directory of one memory partition.
  * @param {string} root - memory root.
  * @param {"project" | "user"} scope - partition kind.

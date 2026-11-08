@@ -196,7 +196,7 @@ test("reconcile queues recent eligible cold sessions with events past the waterm
 		{ header: { id: "otherProject", cwd: B, createdAt: now - day }, live: false }
 	];
 	await h.state.enqueue(ended("seen", A, 1, 5));
-	await h.state.complete(["seen"]);
+	await h.state.complete([{ sessionId: "seen", seq: 5 }]);
 	const sessionQuery = {
 		listSessions: async () => sessions,
 		listEvents: async (id) => Array.from({ length: id === "seen" ? 5 : 7 }, (_v, i) => ({ seq: i + 1 }))
@@ -206,12 +206,12 @@ test("reconcile queues recent eligible cold sessions with events past the waterm
 	assert.deepEqual(h.state.pending().map((job) => [job.sessionId, job.seq]), [["fresh", 7]]);
 });
 
-test("pruneDreamSessions deletes only logged dreaming sessions beyond the newest 50", async (t) => {
+test("pruneDreamSessions deletes only recorded dreaming sessions beyond the newest 50", async (t) => {
 	const h = await setup(t);
 	const noCwd = join(h.root, "sessions", "_no-cwd");
 	for (let i = 0; i < 53; i++) {
 		await mkdir(join(noCwd, `session-${i}`), { recursive: true });
-		await h.state.appendLog({ at: i, cwd: A, sessionIds: [], ok: true, trigger: "auto", dreamSessionId: `session-${i}` });
+		await h.state.recordDreamSession(`session-${i}`);
 	}
 	await mkdir(join(noCwd, "session-not-ours"), { recursive: true });
 	await pruneDreamSessions(h.state, join(h.root, "sessions"));
@@ -220,4 +220,61 @@ test("pruneDreamSessions deletes only logged dreaming sessions beyond the newest
 	assert.ok(left.includes("session-not-ours"));
 	assert.ok(!left.includes("session-0") && !left.includes("session-2"));
 	assert.ok(left.includes("session-3"));
+	assert.equal(h.state.dreamSessions().length, 50);
+});
+
+test("runs record their dreaming session for later pruning", async (t) => {
+	const h = await setup(t);
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.runner.idle();
+	assert.deepEqual(h.state.dreamSessions(), ["d1"]);
+});
+
+test("a session that ends again during its run stays queued with the newer events", async (t) => {
+	const h = await setup(t);
+	let release;
+	h.gates.push(new Promise((resolve) => { release = resolve; }));
+	await h.runner.onSessionEnded(ended("s1", A, 1, 100));
+	await h.runner.onSessionEnded(ended("s1", A, 2, 200));
+	release();
+	await h.runner.idle();
+	assert.deepEqual(h.calls.map((call) => call.sessionIds), [["s1"], ["s1"]]);
+	assert.equal(h.state.watermark("s1"), 200);
+	assert.deepEqual(h.state.pending(), []);
+});
+
+test("turning the master switch off stops queued auto runs", async (t) => {
+	let enabled = true;
+	const h = await setup(t);
+	h.runner.config.enabled = { get: () => enabled };
+	let release;
+	h.gates.push(new Promise((resolve) => { release = resolve; }));
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.state.enqueue(ended("s2", B, 2));
+	enabled = false;
+	release();
+	await h.runner.idle();
+	assert.deepEqual(h.calls.map((call) => call.cwd), [A]);
+});
+
+test("stopping during a paused manual run keeps auto paused", async (t) => {
+	const h = await setup(t, { outcomes: [{ ok: false, error: "bad key" }, { ok: false, error: "inactive context" }] });
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.runner.idle();
+	let release;
+	h.gates.push(new Promise((resolve) => { release = resolve; }));
+	const manual = h.runner.runManual({});
+	h.runner.stop();
+	release();
+	const report = await manual;
+	assert.equal(report.ok, false);
+	assert.equal(h.state.paused.reason, "bad key");
+});
+
+test("project matching ignores Windows path case", { skip: process.platform !== "win32" }, async (t) => {
+	const h = await setup(t, { autoDream: false });
+	await h.runner.onSessionEnded(ended("s1", "C:\\Proj", 1));
+	await h.runner.onSessionEnded(ended("s2", "c:\\proj", 2));
+	await h.runner.runManual({ cwd: "C:\\PROJ" });
+	assert.deepEqual(h.calls.map((call) => call.sessionIds), [["s1", "s2"]]);
 });
