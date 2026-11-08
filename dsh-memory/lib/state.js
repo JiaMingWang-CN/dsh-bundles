@@ -35,8 +35,12 @@ async function writeAtomic(file, content) {
 }
 
 export class DreamState {
-	/** @param {string} root - memory root. */
-	constructor(root) {
+	/**
+	 * @param {string} root - memory root.
+	 * @param {{ now?: () => number }} [options]
+	 */
+	constructor(root, { now = Date.now } = {}) {
+		this.now = now;
 		this.dir = join(root, ".state");
 		this.stateFile = join(this.dir, "state.json");
 		this.logFile = join(this.dir, "log.jsonl");
@@ -51,6 +55,13 @@ export class DreamState {
 	async load() {
 		const raw = await readIfExists(this.stateFile);
 		if (raw !== null) this.data = { queue: [], watermarks: {}, paused: null, ...JSON.parse(raw) };
+		/* First load marks the install time: sessions created earlier are never backfilled. */
+		if (typeof this.data.installedAt !== "number") {
+			const installedAt = this.now();
+			await this.persist(() => {
+				this.data.installedAt = installedAt;
+			});
+		}
 		const log = await readIfExists(this.logFile);
 		/* An append torn by a crash leaves a partial last line; skip unparsable lines rather than refuse to load. */
 		this.log = log === null ? [] : log.split("\n").flatMap((line) => {
@@ -122,6 +133,11 @@ export class DreamState {
 	/** @returns {number} last consolidated event seq for a session, 0 if never. */
 	watermark(sessionId) {
 		return this.data.watermarks[sessionId] ?? 0;
+	}
+
+	/** @returns {number} epoch ms when this memory root was first used by the plugin. */
+	get installedAt() {
+		return this.data.installedAt;
 	}
 
 	get paused() {

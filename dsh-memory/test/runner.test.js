@@ -12,7 +12,7 @@ const B = "C:\\b";
 async function setup(t, { outcomes = [], enabled = true, autoDream = true } = {}) {
 	const root = await mkdtemp(join(tmpdir(), "dsh-memory-runner-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
-	const state = new DreamState(root);
+	const state = new DreamState(root, { now: () => 0 });
 	await state.load();
 	const calls = [];
 	let active = 0;
@@ -204,6 +204,20 @@ test("reconcile queues recent eligible cold sessions with events past the waterm
 	const added = await reconcile(sessionQuery, h.state, { now: () => now, cwd: A });
 	assert.deepEqual(added, ["fresh"]);
 	assert.deepEqual(h.state.pending().map((job) => [job.sessionId, job.seq]), [["fresh", 7]]);
+});
+
+test("reconcile never backfills sessions created before the plugin was installed", async (t) => {
+	const h = await setup(t);
+	const day = 86_400_000;
+	const sessionQuery = {
+		listSessions: async () => [
+			{ header: { id: "beforeInstall", cwd: A, createdAt: h.state.installedAt - 1 }, live: false },
+			{ header: { id: "afterInstall", cwd: A, createdAt: h.state.installedAt + 1 }, live: false }
+		],
+		listEvents: async () => [{ seq: 1 }]
+	};
+	const added = await reconcile(sessionQuery, h.state, { now: () => h.state.installedAt + day });
+	assert.deepEqual(added, ["afterInstall"]);
 });
 
 test("pruneDreamSessions deletes only recorded dreaming sessions beyond the newest 50", async (t) => {

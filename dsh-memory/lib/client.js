@@ -25,6 +25,7 @@ window.__ModuleLoader__.load({
 			".dsh-mem-switch.on .dsh-mem-knob{transform:translateX(18px)}" +
 			".dsh-mem-input{box-sizing:border-box;width:180px;padding:4px 8px;border-radius:6px;font-size:12px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}" +
 			".dsh-mem-input.narrow{width:72px}" +
+			".dsh-mem-input.wide{width:280px;cursor:pointer}" +
 			".dsh-mem-btn{box-sizing:border-box;padding:4px 12px;border-radius:14px;font-size:12px;cursor:pointer;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}" +
 			".dsh-mem-btn:disabled{opacity:.5;cursor:default}" +
 			".dsh-mem-warn{font-size:12px;color:var(--dsw-alias-state-warn-primary)}" +
@@ -34,7 +35,26 @@ window.__ModuleLoader__.load({
 			".dsh-mem-path{font-family:var(--dsw-font-mono,monospace);font-size:12px;word-break:break-all}";
 		/** Stable Cordis plugin name; also the settings namespace. */
 		const name = "memory";
-		const inject = ["slots", "configForms"];
+		const inject = ["slots", "configForms", "remote", "remote.session"];
+
+		/** Stable select value for one provider/model route ("" is the default model). */
+		function modelKey(provider, model) {
+			return provider === "" && model === "" ? "" : JSON.stringify([provider, model]);
+		}
+		/**
+		 * Select options: the default model first, then every catalog model,
+		 * plus the saved route when the catalog no longer offers it.
+		 * @param {Array<{ id: string, name: string, models: Array<{ id: string, name: string }> }>} groups - `session.modelCatalog` groups.
+		 */
+		function modelOptions(groups, provider, model) {
+			const options = [{ value: "", label: "默认模型（跟随 DSH 默认设置）" }];
+			for (const group of groups) {
+				for (const entry of group.models) options.push({ value: modelKey(group.id, entry.id), label: `${group.name || group.id} · ${entry.name || entry.id}` });
+			}
+			const saved = modelKey(provider, model);
+			if (saved !== "" && !options.some((option) => option.value === saved)) options.push({ value: saved, label: `不可用：${provider} / ${model}` });
+			return options;
+		}
 
 		const pad = (n) => String(n).padStart(2, "0");
 		/** `MM-DD HH:mm` in local time. */
@@ -96,6 +116,23 @@ window.__ModuleLoader__.load({
 			const read = () => host.getSnapshot().value ?? {};
 			const [value, setValue] = React.useState(read);
 			React.useEffect(() => host.subscribe(() => setValue(read())), [host]);
+			const [groups, setGroups] = React.useState([]);
+			React.useEffect(() => {
+				let live = true;
+				Promise.resolve(props.loadCatalog?.()).then((response) => {
+					if (live && response?.ok) setGroups(response.value.groups);
+				}, () => {});
+				return () => { live = false; };
+			}, [props.loadCatalog]);
+			const provider = value.dreamProvider ?? "";
+			const model = value.dreamModel ?? "";
+			const chooseModel = (event) => {
+				const [nextProvider, nextModel] = event.target.value === "" ? ["", ""] : JSON.parse(event.target.value);
+				host.mutate([
+					{ op: "set", path: ["dreamProvider"], value: nextProvider },
+					{ op: "set", path: ["dreamModel"], value: nextModel }
+				]);
+			};
 			const status = value.status ?? {};
 			const busy = status.running != null;
 			const requestDream = () => host.set("dreamRequest", String(Date.now()));
@@ -122,10 +159,9 @@ window.__ModuleLoader__.load({
 				}),
 				React.createElement(Row, {
 					title: "dreaming 模型",
-					desc: "provider 与模型 id 都留空时使用默认模型。",
-					control: React.createElement("div", { className: "dsh-mem-logrow" },
-						React.createElement("input", { className: "dsh-mem-input", "aria-label": "dreaming provider", placeholder: "provider", defaultValue: value.dreamProvider ?? "", onBlur: (event) => host.set("dreamProvider", event.target.value.trim()) }),
-						React.createElement("input", { className: "dsh-mem-input", "aria-label": "dreaming 模型 id", placeholder: "模型 id", defaultValue: value.dreamModel ?? "", onBlur: (event) => host.set("dreamModel", event.target.value.trim()) }))
+					desc: "整理记忆时使用的模型；可选更便宜的模型以节省 token。",
+					control: React.createElement("select", { className: "dsh-mem-input wide", "aria-label": "dreaming 模型", value: modelKey(provider, model), onChange: chooseModel },
+						modelOptions(groups, provider, model).map((option) => React.createElement("option", { key: option.value, value: option.value }, option.label)))
 				}),
 				status.paused ? React.createElement("div", { className: "dsh-mem-warn" }, `自动 dreaming 已暂停（${formatTime(status.paused.since)}）：${status.paused.reason}。修好模型后点「立即 dream」补跑，成功后自动恢复。`) : null,
 				React.createElement("div", { className: "dsh-mem-row" },
@@ -155,7 +191,7 @@ window.__ModuleLoader__.load({
 			}, "memory: styles");
 			ctx.slots.inject("settings.section", () => ctx.slots.register(
 				{ name: "settings.section", id: "memory", order: 26, label: "记忆" },
-				() => React.createElement(SettingsPage, { host })
+				() => React.createElement(SettingsPage, { host, loadCatalog: () => ctx.remote.session.modelCatalog() })
 			));
 		}
 		//#endregion
@@ -163,6 +199,8 @@ window.__ModuleLoader__.load({
 		exports.inject = inject;
 		exports.name = name;
 		exports.SettingsPage = SettingsPage;
+		exports.modelOptions = modelOptions;
+		exports.modelKey = modelKey;
 		return module.exports;
 	}
 });

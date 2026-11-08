@@ -184,7 +184,7 @@ export async function reconcile(sessionQuery, state, { now = Date.now, cwd, excl
 	for (const { header, live } of await sessionQuery.listSessions()) {
 		if (live || !isEligible(header) || header.id === excludeSessionId || queued.has(header.id)) continue;
 		if (cwd !== undefined && !sameProject(header.cwd, cwd)) continue;
-		if ((header.createdAt ?? 0) < now() - maxAgeMs) continue;
+		if ((header.createdAt ?? 0) < Math.max(now() - maxAgeMs, state.installedAt ?? 0)) continue;
 		const events = await sessionQuery.listEvents(header.id);
 		const last = events.at(-1);
 		const seq = last?.seq ?? 0;

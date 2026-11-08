@@ -19,7 +19,15 @@ async function load() {
 
 function fakeHost(value) {
 	const writes = [];
-	return { writes, getSnapshot: () => ({ value }), subscribe: () => () => {}, set: (field, next) => writes.push([field, next]) };
+	const mutations = [];
+	return {
+		writes,
+		mutations,
+		getSnapshot: () => ({ value }),
+		subscribe: () => () => {},
+		set: (field, next) => writes.push([field, next]),
+		mutate: async (ops) => { mutations.push(ops); }
+	};
 }
 
 const texts = (node) => (node === null || node === undefined || typeof node === "boolean" ? [] : typeof node !== "object" ? [String(node)] : node.children.flatMap(texts));
@@ -97,7 +105,39 @@ test("toggles and inputs write volatile config fields", async () => {
 	assert.deepEqual(host.writes.at(-1), ["idleMinutes", 15]);
 	idle.props.onChange({ target: { value: "0" } });
 	assert.deepEqual(host.writes.at(-1), ["idleMinutes", 15], "invalid values are not written");
-	const [model] = find(tree, (node) => node.props["aria-label"] === "dreaming 模型 id");
-	model.props.onBlur({ target: { value: " deepseek-flash " } });
-	assert.deepEqual(host.writes.at(-1), ["dreamModel", "deepseek-flash"]);
+});
+
+const GROUPS = [
+	{ id: "deepseek-official", name: "DeepSeek", models: [{ id: "deepseek-flash", name: "DeepSeek Flash" }, { id: "deepseek-pro", name: "DeepSeek Pro" }] },
+	{ id: "mimo", name: "MiMo", models: [{ id: "mimo-v2", name: "MiMo V2" }] }
+];
+
+test("modelOptions lists the default first, then every catalog model", async () => {
+	const plugin = await load();
+	const options = plugin.modelOptions(GROUPS, "", "");
+	assert.equal(options[0].value, "");
+	assert.match(options[0].label, /默认模型/);
+	assert.deepEqual(options.slice(1).map((option) => option.label), ["DeepSeek · DeepSeek Flash", "DeepSeek · DeepSeek Pro", "MiMo · MiMo V2"]);
+});
+
+test("modelOptions keeps a saved model that is no longer in the catalog, marked unavailable", async () => {
+	const plugin = await load();
+	const options = plugin.modelOptions(GROUPS, "gone", "old-model");
+	assert.match(options.at(-1).label, /不可用.*gone.*old-model/);
+	assert.equal(options.at(-1).value, plugin.modelKey("gone", "old-model"));
+});
+
+test("choosing a model in the select writes provider and model together", async () => {
+	const plugin = await load();
+	const host = fakeHost({ ...VALUE, dreamProvider: "mimo", dreamModel: "mimo-v2" });
+	const [select] = find(plugin.SettingsPage({ host }), (node) => node.type === "select");
+	assert.equal(select.props["aria-label"], "dreaming 模型");
+	assert.equal(select.props.value, plugin.modelKey("mimo", "mimo-v2"));
+	select.props.onChange({ target: { value: plugin.modelKey("deepseek-official", "deepseek-pro") } });
+	assert.deepEqual(host.mutations.at(-1), [
+		{ op: "set", path: ["dreamProvider"], value: "deepseek-official" },
+		{ op: "set", path: ["dreamModel"], value: "deepseek-pro" }
+	]);
+	select.props.onChange({ target: { value: "" } });
+	assert.deepEqual(host.mutations.at(-1).map((op) => op.value), ["", ""]);
 });

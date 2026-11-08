@@ -24,6 +24,7 @@ import { installTrigger } from "./trigger.js";
 import { runDream } from "./dream.js";
 import { DreamRunner, reconcile, pruneDreamSessions } from "./runner.js";
 import { installDreamCommand } from "./command.js";
+import { createStatusPublisher } from "./status.js";
 
 /** Stable Cordis plugin name; also the settings namespace. */
 const name = "memory";
@@ -66,19 +67,13 @@ async function apply(ctx, config) {
 	const state = new DreamState(root);
 	await state.load();
 
-	/* Settings channel: the host publishes `status`, skipping identical writes. */
-	let settings;
-	let lastStatus = JSON.stringify(config.status.get());
-	const publishStatus = (status) => {
-		const next = JSON.stringify({ ...status, root });
-		if (settings === undefined || next === lastStatus) return;
-		lastStatus = next;
-		settings.update(name, { status: JSON.parse(next) }).catch((error) => ctx.logger.warn("memory: could not publish status: %s", error?.message));
-	};
+	/* Settings channel: the host publishes `status` (retrying writes made before the plugin is active). */
+	const status = createStatusPublisher({ name, root, warn: (message) => ctx.logger.warn(message) });
+	ctx.effect(() => () => status.detach());
 	const runner = new DreamRunner({
 		state,
 		config,
-		onStatus: publishStatus,
+		onStatus: (snapshot) => status.publish(snapshot),
 		runDream: (job) => runDream(ctx, { ...job, store }),
 		resolveSelection: () => {
 			const provider = config.dreamProvider.get();
@@ -97,11 +92,9 @@ async function apply(ctx, config) {
 	});
 	ctx.inject(["settings"], (child) => {
 		child.effect(() => child.settings.configure({ auto: false }, ctx.fiber));
-		settings = child.settings;
 		runner.emit();
-		child.effect(() => () => {
-			settings = undefined;
-		});
+		status.attach(child.settings);
+		child.effect(() => () => status.detach());
 	});
 	/* A changed `dreamRequest` nonce from the settings page asks for a manual run over every project. */
 	let lastRequest = config.dreamRequest.get();

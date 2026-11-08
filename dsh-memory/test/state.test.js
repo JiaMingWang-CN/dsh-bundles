@@ -17,6 +17,16 @@ async function loaded(root) {
 	return state;
 }
 
+test("installedAt is set on first load and kept across reloads", async (t) => {
+	const root = await freshRoot(t);
+	const first = new DreamState(root, { now: () => 500 });
+	await first.load();
+	assert.equal(first.installedAt, 500);
+	const second = new DreamState(root, { now: () => 900 });
+	await second.load();
+	assert.equal(second.installedAt, 500);
+});
+
 test("load on an empty root starts empty and unpaused", async (t) => {
 	const state = await loaded(await freshRoot(t));
 	assert.deepEqual(state.pending(), []);
