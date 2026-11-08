@@ -65,9 +65,20 @@ async function apply(ctx, config) {
 
 	const state = new DreamState(root);
 	await state.load();
+
+	/* Settings channel: the host publishes `status`, skipping identical writes. */
+	let settings;
+	let lastStatus = JSON.stringify(config.status.get());
+	const publishStatus = (status) => {
+		const next = JSON.stringify({ ...status, root });
+		if (settings === undefined || next === lastStatus) return;
+		lastStatus = next;
+		settings.update(name, { status: JSON.parse(next) }).catch((error) => ctx.logger.warn("memory: could not publish status: %s", error?.message));
+	};
 	const runner = new DreamRunner({
 		state,
 		config,
+		onStatus: publishStatus,
 		runDream: (job) => runDream(ctx, { ...job, store }),
 		resolveSelection: () => {
 			const provider = config.dreamProvider.get();
@@ -82,6 +93,22 @@ async function apply(ctx, config) {
 		onEnded: (info) => {
 			runner.onSessionEnded(info).catch((error) => ctx.logger.warn("memory: could not queue session %s: %s", info.sessionId, error?.message));
 		}
+	});
+	ctx.inject(["settings"], (child) => {
+		child.effect(() => child.settings.configure({ auto: false }, ctx.fiber));
+		settings = child.settings;
+		runner.emit();
+		child.effect(() => () => {
+			settings = undefined;
+		});
+	});
+	/* A changed `dreamRequest` nonce from the settings page asks for a manual run over every project. */
+	let lastRequest = config.dreamRequest.get();
+	ctx.on("loader/volatile-update", () => {
+		const request = config.dreamRequest.get();
+		if (request === lastRequest) return;
+		lastRequest = request;
+		if (request !== "" && config.enabled.get()) runner.runManual({}).catch((error) => ctx.logger.warn("memory: manual dreaming failed: %s", error?.message));
 	});
 	ctx.inject(["commands"], (child) => {
 		installDreamCommand(child, { config, runner, reconcile: (scope) => reconcile(ctx.sessionQuery, state, scope) });
