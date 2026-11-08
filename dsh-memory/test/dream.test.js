@@ -40,6 +40,17 @@ test("renderTranscript keeps user input, assistant text and tool results; drops 
 	assert.ok(text.length < 1500);
 });
 
+test("renderTranscript shows a tool call as its name and arguments, without call ids", () => {
+	// Real DSH tool-call block: a long provider id plus `arguments` as a JSON string.
+	const id = "call_00_06ad3c5g6rj0j01gr0qnysgk|fc_02179412637310300000000000000000000ffffac153111f54622";
+	const args = JSON.stringify({ description: "List workspace root files", command: "Get-ChildItem -Force" });
+	const text = renderTranscript([
+		{ seq: 20, type: "assistant/message", data: { message: { role: "assistant", content: [{ type: "tool-call", id, name: "pwsh", arguments: args }] } } }
+	]);
+	assert.equal(text, `[seq 20] TOOL CALL pwsh: ${args}`);
+	assert.doesNotMatch(text, /call_00|fc_0217/);
+});
+
 test("transcript tools read pages and search within the batch, refusing other projects", async () => {
 	const sessions = {
 		s1: { header: { id: "s1", cwd: CWD }, events: [userMsg(1, "the db fixture needs --runInBand"), assistantMsg(2, "ok")] },
@@ -125,4 +136,17 @@ test("reports failure when agents.create throws", async (t) => {
 	const fake = fakeAgents({ createError: new Error("no factory") });
 	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
 	assert.deepEqual({ ok: result.ok, error: result.error }, { ok: false, error: "no factory" });
+});
+
+test("tells the agent when the project directory no longer exists", async (t) => {
+	const existing = await mkdtemp(join(tmpdir(), "dsh-memory-project-"));
+	t.after(() => rm(existing, { recursive: true, force: true }));
+	const prompts = {};
+	for (const [label, cwd] of [["gone", join(existing, "deleted")], ["present", existing]]) {
+		const fake = fakeAgents();
+		await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+		prompts[label] = fake.record.followups[0].content[0].text;
+	}
+	assert.match(prompts.gone, /no longer exists/);
+	assert.doesNotMatch(prompts.present, /no longer exists/);
 });

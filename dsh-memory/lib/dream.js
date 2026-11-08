@@ -17,6 +17,7 @@
  * counts as success; a missing turn is a failure too.
  */
 import { randomUUID } from "node:crypto";
+import { stat } from "node:fs/promises";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
 import { createChangeTracker } from "./store.js";
@@ -36,6 +37,13 @@ function blockText(block, max) {
 	if (block?.type === "text") return block.text;
 	if (block?.type === "reasoning") return "";
 	return clip(`[${block?.type}] ${JSON.stringify(block)}`, max);
+}
+
+/** A tool call as `TOOL CALL <name>: <arguments>`; provider call ids are noise and dropped. */
+function toolCallLine(block) {
+	if (block.type !== "tool-call") return `TOOL CALL: ${oneLine(blockText(block, TOOL_CALL_CHARS))}`;
+	const args = typeof block.arguments === "string" ? block.arguments : JSON.stringify(block.arguments ?? {});
+	return `TOOL CALL ${block.name}: ${clip(oneLine(args), TOOL_CALL_CHARS)}`;
 }
 
 /**
@@ -59,7 +67,7 @@ export function renderTranscript(events) {
 			const text = oneLine(content.filter((block) => block.type === "text").map((block) => block.text).join(" "));
 			if (text !== "") lines.push(`[seq ${event.seq}] ASSISTANT: ${text}`);
 			for (const block of content) {
-				if (block.type !== "text" && block.type !== "reasoning") lines.push(`[seq ${event.seq}] TOOL CALL: ${oneLine(blockText(block, TOOL_CALL_CHARS))}`);
+				if (block.type !== "text" && block.type !== "reasoning") lines.push(`[seq ${event.seq}] ${toolCallLine(block)}`);
 			}
 		} else if (event.type === "tool/result") {
 			const text = oneLine(content.map((block) => blockText(block, TOOL_RESULT_CHARS)).join(" "));
@@ -153,6 +161,8 @@ export async function runDream(ctx, { cwd, sessionIds, selection, store, indexMa
 	const sessionId = `session-${randomUUID()}`;
 	let handle;
 	try {
+		/* Notes in a deleted project's partition would never be loaded again; the prompt then keeps only cross-project lessons. */
+		const projectGone = await stat(cwd).then(() => false, (error) => error.code === "ENOENT");
 		handle = await ctx.agents.create({
 			sessionId,
 			meta: { origin: "subagent" },
@@ -167,7 +177,7 @@ export async function runDream(ctx, { cwd, sessionIds, selection, store, indexMa
 		signal?.addEventListener("abort", onAbort, { once: true });
 		try {
 			agent.followup(createUserMessage({
-				content: [{ type: "text", text: dreamPrompt({ cwd, sessionIds, indexMaxBytes }) }],
+				content: [{ type: "text", text: dreamPrompt({ cwd, sessionIds, indexMaxBytes, projectGone }) }],
 				source: { kind: "user" }
 			}));
 			await agent.whenIdle();
