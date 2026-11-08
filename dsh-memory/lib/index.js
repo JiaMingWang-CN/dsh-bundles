@@ -23,6 +23,7 @@ import { DreamState } from "./state.js";
 import { installTrigger } from "./trigger.js";
 import { runDream } from "./dream.js";
 import { DreamRunner, reconcile, pruneDreamSessions } from "./runner.js";
+import { installDreamCommand } from "./command.js";
 
 /** Stable Cordis plugin name; also the settings namespace. */
 const name = "memory";
@@ -81,6 +82,9 @@ async function apply(ctx, config) {
 		onEnded: (info) => {
 			runner.onSessionEnded(info).catch((error) => ctx.logger.warn("memory: could not queue session %s: %s", info.sessionId, error?.message));
 		}
+	});
+	ctx.inject(["commands"], (child) => {
+		installDreamCommand(child, { config, runner, reconcile: (scope) => reconcile(ctx.sessionQuery, state, scope) });
 	});
 	const timer = setTimeout(() => {
 		if (!config.enabled.get()) return;
