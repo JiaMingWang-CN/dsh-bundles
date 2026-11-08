@@ -9,6 +9,7 @@
  * rather than mtime/size, which two quick same-length writes could collide on.
  */
 import { createHash, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, readdir, rename, rm, writeFile, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { partitionDir, resolveEntry } from "./paths.js";
@@ -131,5 +132,19 @@ export class MemoryStore {
 	/** @returns {Promise<string | null>} the partition's INDEX.md content, or null. */
 	async readIndex(scope, cwd) {
 		return (await this.read(scope, cwd, "INDEX.md"))?.content ?? null;
+	}
+
+	/**
+	 * Synchronous INDEX read for system-prompt section callbacks, which DSH
+	 * evaluates synchronously; called once per session snapshot.
+	 * @returns {string | null} the partition's INDEX.md content, or null.
+	 */
+	readIndexSync(scope, cwd) {
+		try {
+			return readFileSync(resolveEntry(partitionDir(this.root, scope, cwd), "INDEX.md"), "utf8");
+		} catch (error) {
+			if (error.code === "ENOENT") return null;
+			throw error;
+		}
 	}
 }

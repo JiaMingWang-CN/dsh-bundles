@@ -13,9 +13,16 @@
  * Design: docs/specs/2026-11-08-agent-memory-design.md
  */
 import z from "@deepseek-ai/schemastery";
+import { resolveMemoryRoot } from "./paths.js";
+import { MemoryStore } from "./store.js";
+import { installMemoryTools } from "./tools.js";
+import { installIndexInjection } from "./inject.js";
 
 /** Stable Cordis plugin name; also the settings namespace. */
 const name = "memory";
+
+/** Host services this plugin needs. */
+const inject = ["tools", "systemPrompt"];
 
 /** Status snapshot shown on the settings page before the first run. */
 const EMPTY_STATUS = { paused: null, running: null, pendingCount: 0, log: [] };
@@ -41,8 +48,9 @@ const Config = z.object({
  * @param config - live volatile config reference.
  */
 function apply(ctx, config) {
-	void ctx;
-	void config;
+	const store = new MemoryStore(resolveMemoryRoot());
+	installMemoryTools(ctx, store, config);
+	installIndexInjection(ctx, store, config);
 }
 
-export { apply, name, Config, EMPTY_STATUS };
+export { apply, inject, name, Config, EMPTY_STATUS };
