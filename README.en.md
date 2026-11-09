@@ -136,7 +136,7 @@ Switching takes effect immediately with no restart; per-engine setup and billing
 
 ### Using cross-session memory
 
-Memory is on after install and the agent reads and writes it on its own. Open Settings → Memory to turn off automatic dreaming, change the idle threshold or pick the dreaming model; type `/dream` in a session to consolidate the current project now. Memory is plain Markdown under `~/.dsh/memory/` that you can read and edit. See `dsh-memory/README.md`.
+Memory is on after install and the agent reads and writes it on its own. Open Settings → Memory to turn off automatic dreaming, change the idle threshold and concurrency, or pick the dreaming model; type `/dream` in a session to consolidate the current project now. Memory is plain Markdown under `~/.dsh/memory/` that you can read and edit. See `dsh-memory/README.md`.
 
 ### Use the MCP tools
 

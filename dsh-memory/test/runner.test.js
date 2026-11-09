@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, mkdir, readdir } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, readdir, writeFile } from "node:fs/promises";
+import { zstdCompressSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DreamState } from "../lib/state.js";
@@ -8,8 +9,9 @@ import { DreamRunner, reconcile, pruneDreamSessions } from "../lib/runner.js";
 
 const A = "C:\\a";
 const B = "C:\\b";
+const C = "C:\\c";
 
-async function setup(t, { outcomes = [], enabled = true, autoDream = true } = {}) {
+async function setup(t, { outcomes = [], enabled = true, autoDream = true, concurrency = 4, listProjects } = {}) {
 	const root = await mkdtemp(join(tmpdir(), "dsh-memory-runner-"));
 	t.after(() => rm(root, { recursive: true, force: true }));
 	const state = new DreamState(root, { now: () => 0 });
@@ -21,7 +23,7 @@ async function setup(t, { outcomes = [], enabled = true, autoDream = true } = {}
 	const runDream = async (job) => {
 		active++;
 		maxActive = Math.max(maxActive, active);
-		calls.push({ cwd: job.cwd, sessionIds: job.sessionIds });
+		calls.push(job.projects ? { projects: job.projects } : { cwd: job.cwd, sessionIds: job.sessionIds });
 		const gate = gates.shift();
 		if (gate) await gate;
 		active--;
@@ -33,8 +35,9 @@ async function setup(t, { outcomes = [], enabled = true, autoDream = true } = {}
 		state,
 		runDream,
 		resolveSelection: () => ({ provider: "p", model: "m" }),
-		config: { enabled: { get: () => enabled }, autoDream: { get: () => autoDream }, indexMaxBytes: { get: () => 4096 } },
+		config: { enabled: { get: () => enabled }, autoDream: { get: () => autoDream }, indexMaxBytes: { get: () => 4096 }, concurrency: { get: () => concurrency } },
 		now: () => 1000,
+		...(listProjects ? { listProjects } : {}),
 		onStatus: (status) => statuses.push(status)
 	});
 	return { root, state, runner, calls, statuses, gates, get maxActive() { return maxActive; } };
@@ -53,16 +56,57 @@ test("auto run consolidates one project per run and completes the batch only aft
 	assert.deepEqual(h.state.recentLog(1)[0].changes, { created: 1, modified: 0, deleted: 0 });
 });
 
-test("runs are strictly serial across projects", async (t) => {
-	const h = await setup(t);
+async function until(condition) {
+	for (let i = 0; i < 200 && !condition(); i++) await new Promise((resolve) => setTimeout(resolve, 5));
+	assert.ok(condition(), "condition not reached");
+}
+
+const gate = (h) => {
 	let release;
 	h.gates.push(new Promise((resolve) => { release = resolve; }));
+	return () => release();
+};
+
+test("different projects run in parallel up to the concurrency limit", async (t) => {
+	const h = await setup(t, { concurrency: 2 });
+	const releases = [gate(h), gate(h), gate(h)];
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.runner.onSessionEnded(ended("s2", B, 2));
+	await h.runner.onSessionEnded(ended("s3", C, 3));
+	assert.deepEqual(h.calls.map((call) => call.cwd), [A, B], "a third project waits for a free slot");
+	assert.deepEqual(h.runner.status().running.map((run) => run.cwd), [A, B]);
+	releases[0]();
+	await until(() => h.calls.length === 3);
+	assert.deepEqual(h.runner.status().running.map((run) => run.cwd), [B, C], "a freed slot goes to the waiting project");
+	for (const release of releases) release();
+	await h.runner.idle();
+	assert.equal(h.maxActive, 2);
+	assert.deepEqual(h.calls.map((call) => call.cwd), [A, B, C]);
+	assert.deepEqual(h.state.pending(), []);
+	assert.equal(h.runner.status().running, null);
+});
+
+test("concurrency 1 keeps runs serial across projects", async (t) => {
+	const h = await setup(t, { concurrency: 1 });
+	const release = gate(h);
 	await h.runner.onSessionEnded(ended("s1", A, 1));
 	await h.runner.onSessionEnded(ended("s2", B, 2));
 	release();
 	await h.runner.idle();
 	assert.equal(h.maxActive, 1);
 	assert.deepEqual(h.calls.map((call) => call.cwd), [A, B]);
+});
+
+test("one project never has two runs at once", async (t) => {
+	const h = await setup(t);
+	const release = gate(h);
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.runner.onSessionEnded(ended("s2", A, 2));
+	assert.equal(h.calls.length, 1);
+	release();
+	await h.runner.idle();
+	assert.equal(h.maxActive, 1);
+	assert.deepEqual(h.calls.map((call) => call.sessionIds), [["s1"], ["s2"]]);
 });
 
 test("failure pauses auto; later endings only enqueue; batch stays queued", async (t) => {
@@ -105,19 +149,31 @@ test("manual failure keeps paused", async (t) => {
 	assert.equal(h.state.recentLog(1)[0].trigger, "manual");
 });
 
-test("manual during running auto waits and both are logged", async (t) => {
+test("manual for a project being consolidated waits for that run; both are logged", async (t) => {
 	const h = await setup(t);
-	let release;
-	h.gates.push(new Promise((resolve) => { release = resolve; }));
+	const release = gate(h);
 	await h.runner.onSessionEnded(ended("s1", A, 1));
-	await h.state.enqueue(ended("s2", B, 2));
-	const manual = h.runner.runManual({ cwd: B });
-	assert.equal(h.maxActive, 1);
+	await h.state.enqueue(ended("s2", A, 2));
+	const manual = h.runner.runManual({ cwd: A });
+	await new Promise((resolve) => setImmediate(resolve));
+	assert.equal(h.calls.length, 1);
 	release();
 	await manual;
 	await h.runner.idle();
 	assert.equal(h.maxActive, 1);
-	assert.deepEqual(h.state.recentLog(10).map((entry) => [entry.cwd, entry.trigger]), [[A, "auto"], [B, "manual"]]);
+	assert.deepEqual(h.state.recentLog(10).map((entry) => [entry.cwd, entry.trigger]), [[A, "auto"], [A, "manual"]]);
+});
+
+test("manual for another project runs alongside a running auto", async (t) => {
+	const h = await setup(t);
+	const release = gate(h);
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.state.enqueue(ended("s2", B, 2));
+	const report = await h.runner.runManual({ cwd: B });
+	assert.equal(report.ok, true);
+	assert.equal(h.maxActive, 2);
+	release();
+	await h.runner.idle();
 });
 
 test("manual run excludes the invoking session", async (t) => {
@@ -199,11 +255,30 @@ test("reconcile queues recent eligible cold sessions with events past the waterm
 	await h.state.complete([{ sessionId: "seen", seq: 5 }]);
 	const sessionQuery = {
 		listSessions: async () => sessions,
-		listEvents: async (id) => Array.from({ length: id === "seen" ? 5 : 7 }, (_v, i) => ({ seq: i + 1 }))
+		listEvents: async (id) => Array.from({ length: id === "seen" ? 5 : 7 }, (_v, i) => ({ seq: i + 1, type: "turn/end", data: { reason: { kind: "completed" } } }))
 	};
 	const added = await reconcile(sessionQuery, h.state, { now: () => now, cwd: A });
 	assert.deepEqual(added, ["fresh"]);
 	assert.deepEqual(h.state.pending().map((job) => [job.sessionId, job.seq]), [["fresh", 7]]);
+});
+
+test("reconcile skips sessions whose new events are not worth a run", async (t) => {
+	const h = await setup(t);
+	const day = 86_400_000;
+	const completed = (seq) => ({ seq, type: "turn/end", data: { reason: { kind: "completed" } } });
+	const sessionQuery = {
+		listSessions: async () => [
+			{ header: { id: "greeting", cwd: A, createdAt: h.state.installedAt + 1 }, live: false },
+			{ header: { id: "aborted", cwd: A, createdAt: h.state.installedAt + 1 }, live: false },
+			{ header: { id: "work", cwd: A, createdAt: h.state.installedAt + 1 }, live: false }
+		],
+		listEvents: async (id) => ({
+			greeting: [{ seq: 1, type: "user/message" }, completed(2)],
+			aborted: [{ seq: 1, type: "turn/end", data: { reason: { kind: "aborted" } } }],
+			work: [{ seq: 1, type: "assistant/message", data: { message: { content: [{ type: "tool-call", name: "pwsh" }] } } }, completed(2)]
+		})[id]
+	};
+	assert.deepEqual(await reconcile(sessionQuery, h.state, { now: () => h.state.installedAt + day }), ["work"]);
 });
 
 test("reconcile never backfills sessions created before the plugin was installed", async (t) => {
@@ -214,34 +289,84 @@ test("reconcile never backfills sessions created before the plugin was installed
 			{ header: { id: "beforeInstall", cwd: A, createdAt: h.state.installedAt - 1 }, live: false },
 			{ header: { id: "afterInstall", cwd: A, createdAt: h.state.installedAt + 1 }, live: false }
 		],
-		listEvents: async () => [{ seq: 1 }]
+		listEvents: async () => [{ seq: 1, type: "turn/end", data: { reason: { kind: "completed" } } }, { seq: 2, type: "turn/end", data: { reason: { kind: "completed" } } }]
 	};
 	const added = await reconcile(sessionQuery, h.state, { now: () => h.state.installedAt + day });
 	assert.deepEqual(added, ["afterInstall"]);
 });
 
-test("pruneDreamSessions deletes only recorded dreaming sessions beyond the newest 50", async (t) => {
+async function writeSession(noCwd, id, createdAt, prompt) {
+	await mkdir(join(noCwd, id), { recursive: true });
+	const lines = [{ type: "session", version: 4, id, createdAt, origin: "subagent" }, { type: "user/message", data: { role: "user", content: [{ type: "text", text: prompt }], source: { kind: "user" } } }];
+	await writeFile(join(noCwd, id, "session.v4.jsonl.zstd"), zstdCompressSync(Buffer.from(lines.map((line) => JSON.stringify(line)).join("\n") + "\n")));
+}
+
+test("pruneDreamSessions finds dreaming sessions on disk and keeps the newest, leaving other hidden sessions", async (t) => {
 	const h = await setup(t);
 	const noCwd = join(h.root, "sessions", "_no-cwd");
-	for (let i = 0; i < 53; i++) {
-		await mkdir(join(noCwd, `session-${i}`), { recursive: true });
-		await h.state.recordDreamSession(`session-${i}`);
-	}
-	await mkdir(join(noCwd, "session-not-ours"), { recursive: true });
-	await pruneDreamSessions(h.state, join(h.root, "sessions"));
-	const left = (await readdir(noCwd)).sort();
-	assert.equal(left.length, 51);
-	assert.ok(left.includes("session-not-ours"));
-	assert.ok(!left.includes("session-0") && !left.includes("session-2"));
-	assert.ok(left.includes("session-3"));
-	assert.equal(h.state.dreamSessions().length, 50);
+	for (let i = 0; i < 4; i++) await writeSession(noCwd, `session-new-${i}`, 100 + i, "Memory consolidation · demo\n\nYou are consolidating…");
+	await writeSession(noCwd, "session-legacy", 1, 'You are "dreaming": consolidating the long-term memory…');
+	await writeSession(noCwd, "session-other", 0, "an unrelated hidden subagent task");
+	await mkdir(join(noCwd, "session-unreadable"), { recursive: true });
+	await pruneDreamSessions(join(h.root, "sessions"), { keep: 3 });
+	assert.deepEqual((await readdir(noCwd)).sort(), ["session-new-1", "session-new-2", "session-new-3", "session-other", "session-unreadable"]);
 });
 
-test("runs record their dreaming session for later pruning", async (t) => {
+test("an ok run's issues and summary reach the log", async (t) => {
 	const h = await setup(t);
+	h.runner.runDream = async () => ({ ok: true, changes: { created: 0, modified: 1, deleted: 0 }, issues: ["tool error: session not found"], summary: "fixed a note" });
 	await h.runner.onSessionEnded(ended("s1", A, 1));
 	await h.runner.idle();
-	assert.deepEqual(h.state.dreamSessions(), ["d1"]);
+	const entry = h.state.recentLog(1)[0];
+	assert.deepEqual([entry.ok, entry.issues, entry.summary], [true, ["tool error: session not found"], "fixed a note"]);
+	assert.deepEqual(h.state.pending(), [], "a run with issues still completes its batch");
+	assert.equal(h.state.paused, null);
+});
+
+test("a cross-project run is due a day after the last one once projects ran, and runs alone", async (t) => {
+	let clock = 10 * 86_400_000;
+	const h = await setup(t, { listProjects: async () => [{ cwd: A, notes: 2 }, { cwd: B, notes: 0 }] });
+	h.runner.now = () => clock;
+	await h.state.completeCross(clock - 1000);
+	const release = gate(h);
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	release();
+	await h.runner.idle();
+	assert.deepEqual(h.calls.map((call) => call.cwd ?? "cross"), [A], "not due within a day");
+	assert.deepEqual(h.state.crossProjects(), [A]);
+	clock += 86_400_000;
+	const releaseB = gate(h);
+	await h.runner.onSessionEnded(ended("s2", B, 2));
+	await h.runner.onSessionEnded(ended("s3", C, 3));
+	assert.deepEqual(h.calls.map((call) => call.cwd ?? "cross"), [A, "cross"], "a due cross run starts first and holds new project runs");
+	releaseB();
+	await h.runner.idle();
+	assert.deepEqual(h.calls.map((call) => call.cwd ?? "cross"), [A, "cross", B, C]);
+	assert.deepEqual(h.calls[1].projects, [{ cwd: A, notes: 2 }, { cwd: B, notes: 0 }]);
+	assert.equal(h.maxActive, 1, "nothing ran alongside the gated cross run");
+	assert.equal(h.state.recentLog(3)[0].scope, "cross");
+	assert.equal(h.state.crossAt, clock);
+});
+
+test("the settings page's manual run ends with a cross-project run; /dream does not", async (t) => {
+	const h = await setup(t, { autoDream: false, listProjects: async () => [{ cwd: A, notes: 1 }] });
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.runner.runManual({ cwd: A });
+	assert.deepEqual(h.calls.map((call) => call.cwd ?? "cross"), [A]);
+	const report = await h.runner.runManual({ cross: true });
+	assert.equal(report.ok, true);
+	assert.deepEqual(h.calls.map((call) => call.cwd ?? "cross"), [A, "cross"]);
+	assert.deepEqual(report.runs.map((run) => run.scope), ["cross"]);
+});
+
+test("a cross-project run with no projects is marked done instead of retried", async (t) => {
+	const h = await setup(t, { listProjects: async () => [] });
+	h.runner.now = () => 10 * 86_400_000;
+	await h.runner.onSessionEnded(ended("s1", A, 1));
+	await h.runner.idle();
+	assert.deepEqual(h.calls.map((call) => call.cwd ?? "cross"), [A]);
+	assert.deepEqual(h.state.crossProjects(), []);
+	assert.equal(typeof h.state.crossAt, "number");
 });
 
 test("a session that ends again during its run stays queued with the newer events", async (t) => {

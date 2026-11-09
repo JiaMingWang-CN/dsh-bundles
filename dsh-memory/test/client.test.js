@@ -78,7 +78,7 @@ test("dream-now button writes a fresh dreamRequest and is disabled while running
 	button.props.onClick();
 	assert.equal(host.writes[0][0], "dreamRequest");
 	assert.match(host.writes[0][1], /^\d+$/);
-	const busy = fakeHost({ ...VALUE, status: { ...STATUS, running: { cwd: "C:\\x" } } });
+	const busy = fakeHost({ ...VALUE, status: { ...STATUS, running: [{ cwd: "C:\\x" }] } });
 	const [disabled] = find(plugin.SettingsPage({ host: busy }), (node) => node.type === "button" && texts(node).join("") === "立即 dream");
 	assert.equal(disabled.props.disabled, true);
 	assert.match(texts(plugin.SettingsPage({ host: busy })).join("|"), /正在整理：x/);
@@ -105,6 +105,18 @@ test("toggles and inputs write volatile config fields", async () => {
 	assert.deepEqual(host.writes.at(-1), ["idleMinutes", 15]);
 	idle.props.onChange({ target: { value: "0" } });
 	assert.deepEqual(host.writes.at(-1), ["idleMinutes", 15], "invalid values are not written");
+	const [concurrency] = find(tree, (node) => node.props["aria-label"] === "并发数");
+	assert.equal(concurrency.props.defaultValue, 4);
+	concurrency.props.onChange({ target: { value: "2" } });
+	assert.deepEqual(host.writes.at(-1), ["concurrency", 2]);
+	concurrency.props.onChange({ target: { value: "0" } });
+	assert.deepEqual(host.writes.at(-1), ["concurrency", 2], "invalid values are not written");
+});
+
+test("status lists every project being consolidated", async () => {
+	const plugin = await load();
+	const busy = fakeHost({ ...VALUE, status: { ...STATUS, running: [{ cwd: "C:\\x" }, { cwd: "C:\\y" }] } });
+	assert.match(texts(plugin.SettingsPage({ host: busy })).join("|"), /正在整理：x、y/);
 });
 
 const GROUPS = [
@@ -170,4 +182,18 @@ test("choosing a model in the select writes provider and model together", async 
 	]);
 	select.props.onChange({ target: { value: "" } });
 	assert.deepEqual(host.mutations.at(-1).map((op) => op.value), ["", "", ""]);
+});
+
+test("log rows flag ok runs with issues and name the cross-project run", async () => {
+	const plugin = await load();
+	const log = [
+		{ at: Date.UTC(2026, 10, 8, 8, 0), cwd: "C:\Programs\n2sql", sessionIds: ["a"], ok: true, trigger: "auto", changes: { created: 0, modified: 1, deleted: 0 }, issues: ["tool error: session not found", "x.md: unverified"] },
+		{ at: Date.UTC(2026, 10, 8, 9, 0), scope: "cross", sessionIds: [], ok: true, trigger: "auto", changes: { created: 1, modified: 0, deleted: 3 }, issues: [] }
+	];
+	const tree = plugin.SettingsPage({ host: fakeHost({ ...VALUE, status: { ...STATUS, paused: null, log, running: [{ scope: "cross" }] } }) });
+	const all = texts(tree).join("|");
+	assert.match(all, /有 2 个问题：tool error: session not found/);
+	assert.match(all, /跨项目\|全部分区/);
+	assert.match(all, /正在整理：跨项目/);
+	assert.equal(find(tree, (node) => typeof node.props?.className === "string" && node.props.className.includes("dsh-mem-dot warn")).length, 1);
 });

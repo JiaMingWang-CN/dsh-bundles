@@ -39,16 +39,30 @@ async function readIfExists(file) {
 	}
 }
 
-/** Counts the note changes made during one run, for the dreaming log. */
+/**
+ * Records the notes one run changed, for the dreaming log. A note counts
+ * once, by its state before and after the run: written three times is one
+ * modification; created and then deleted is no change.
+ */
 export function createChangeTracker() {
-	const counts = { created: 0, modified: 0, deleted: 0 };
+	/** path → whether it existed before the run, and whether it exists now. */
+	const notes = new Map();
 	return {
-		/** @param {"created" | "modified" | "deleted"} kind @param {string} _path */
-		record(kind, _path) {
-			counts[kind]++;
+		/** @param {"created" | "modified" | "deleted"} kind @param {string} path - note label, e.g. "user/INDEX.md". */
+		record(kind, path) {
+			const note = notes.get(path) ?? { before: kind !== "created" };
+			note.after = kind !== "deleted";
+			notes.set(path, note);
 		},
+		/** @returns {{ created: number, modified: number, deleted: number, paths: { created: string[], modified: string[], deleted: string[] } }} */
 		summary() {
-			return { ...counts };
+			const paths = { created: [], modified: [], deleted: [] };
+			for (const [path, { before, after }] of notes) {
+				if (!before && after) paths.created.push(path);
+				else if (before && after) paths.modified.push(path);
+				else if (before && !after) paths.deleted.push(path);
+			}
+			return { created: paths.created.length, modified: paths.modified.length, deleted: paths.deleted.length, paths };
 		}
 	};
 }

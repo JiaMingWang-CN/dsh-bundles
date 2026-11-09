@@ -47,3 +47,11 @@ test("dream summary lists per-run changes or error", async () => {
 	assert.match(result.text, /暂停/);
 	assert.equal(formatReport({ ok: true, runs: runs.slice(0, 1) }).startsWith("✔"), true);
 });
+
+test("formatReport marks runs with issues, lists them, and names the cross-project run", () => {
+	const text = formatReport({ ok: true, runs: [
+		{ cwd: CWD, sessionIds: ["s1"], ok: true, changes: { created: 0, modified: 1, deleted: 0 }, issues: ["tool error: session not found"] },
+		{ scope: "cross", sessionIds: [], ok: true, changes: { created: 1, modified: 0, deleted: 2 }, issues: [] }
+	] });
+	assert.equal(text, "⚠ demo · 会话 1 个 · 新增 0 / 修改 1 / 删除 0 · 有 1 个问题\n  - tool error: session not found\n✔ 跨项目 · 新增 1 / 修改 0 / 删除 2");
+});

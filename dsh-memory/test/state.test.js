@@ -77,14 +77,17 @@ test("a torn log line is skipped instead of breaking load", async (t) => {
 	assert.deepEqual(reloaded.recentLog(5).map((entry) => entry.at), [1]);
 });
 
-test("dream sessions are tracked independently of the log window", async (t) => {
+test("cross-project bookkeeping persists projects run since the last cross run", async (t) => {
 	const root = await freshRoot(t);
 	const state = await loaded(root);
-	await state.recordDreamSession("session-a");
-	await state.recordDreamSession("session-b");
-	assert.deepEqual((await loaded(root)).dreamSessions(), ["session-a", "session-b"]);
-	await state.forgetDreamSessions(["session-a"]);
-	assert.deepEqual(state.dreamSessions(), ["session-b"]);
+	assert.deepEqual([state.crossProjects(), state.crossAt], [[], undefined]);
+	await state.noteProjectRun("C:\\a");
+	await state.noteProjectRun("C:\\a");
+	await state.noteProjectRun("C:\\b");
+	assert.deepEqual((await loaded(root)).crossProjects(), ["C:\\a", "C:\\b"]);
+	await state.completeCross(42);
+	const reloaded = await loaded(root);
+	assert.deepEqual([reloaded.crossProjects(), reloaded.crossAt], [[], 42]);
 });
 
 test("enqueue dedupes by sessionId keeping latest seq", async (t) => {

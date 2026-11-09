@@ -64,6 +64,8 @@ window.__ModuleLoader__.load({
 			".dsh-mem-count{flex:none;color:var(--dsw-alias-label-tertiary)}",
 			".dsh-mem-result{flex:1;min-width:0;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
 			".dsh-mem-result.fail{color:var(--dsw-alias-state-error-primary)}",
+			".dsh-mem-log .dsh-mem-dot.warn{background:var(--dsw-alias-state-warn-primary)}",
+			".dsh-mem-result.warn{color:var(--dsw-alias-state-warn-label,var(--dsw-alias-state-warn-primary))}",
 			".dsh-mem-empty{padding:14px 0;font-size:13px;color:var(--dsw-alias-label-tertiary)}",
 			".dsh-mem-path{flex:1;min-width:0;font-family:var(--dsw-font-mono,ui-monospace,monospace);font-size:12px;color:var(--dsw-alias-label-secondary);word-break:break-all}",
 			".dsh-mem-pathlabel{flex:none;width:64px;font-size:13px}"
@@ -144,16 +146,24 @@ window.__ModuleLoader__.load({
 			return h("select", { className: "dsh-mem-field", "aria-label": props.label, value: props.value, disabled: props.disabled, onChange: props.onChange },
 				props.options.map((option) => h("option", { key: option.value, value: option.value }, option.label)));
 		}
+		/** A run's or running entry's target: a project name, or 跨项目 for the cross-project run. */
+		function targetName(run) {
+			return run.scope === "cross" ? "跨项目" : projectName(run.cwd);
+		}
 		function LogRow(props) {
 			const run = props.run;
+			const issues = run.ok ? run.issues ?? [] : [];
+			const changes = `新增 ${run.changes?.created ?? 0} / 修改 ${run.changes?.modified ?? 0} / 删除 ${run.changes?.deleted ?? 0}`;
 			return h("div", { className: "dsh-mem-log" },
-				h("span", { className: "dsh-mem-dot " + (run.ok ? "ok" : "fail") }),
+				h("span", { className: "dsh-mem-dot " + (!run.ok ? "fail" : issues.length > 0 ? "warn" : "ok") }),
 				h("span", { className: "dsh-mem-time" }, formatTime(run.at)),
-				h("span", { className: "dsh-mem-project", title: run.cwd }, projectName(run.cwd)),
-				h("span", { className: "dsh-mem-count" }, `会话 ${run.sessionIds.length} 个`),
-				run.ok
-					? h("span", { className: "dsh-mem-result" }, `新增 ${run.changes?.created ?? 0} / 修改 ${run.changes?.modified ?? 0} / 删除 ${run.changes?.deleted ?? 0}`)
-					: h("span", { className: "dsh-mem-result fail", title: run.error }, `失败：${run.error ?? "未知错误"}`),
+				h("span", { className: "dsh-mem-project", title: run.cwd ?? "" }, targetName(run)),
+				h("span", { className: "dsh-mem-count" }, run.scope === "cross" ? "全部分区" : `会话 ${run.sessionIds.length} 个`),
+				!run.ok
+					? h("span", { className: "dsh-mem-result fail", title: run.error }, `失败：${run.error ?? "未知错误"}`)
+					: issues.length > 0
+						? h("span", { className: "dsh-mem-result warn", title: issues.join("\n") }, `${changes} · 有 ${issues.length} 个问题：${issues[0]}`)
+						: h("span", { className: "dsh-mem-result" }, changes),
 				run.ok ? null : h("button", { type: "button", className: "dsh-mem-btn small", disabled: props.busy, onClick: props.onRetry }, "重试"));
 		}
 		function PathRow(props) {
@@ -166,6 +176,7 @@ window.__ModuleLoader__.load({
 		function StatusCard(props) {
 			const status = props.status;
 			const running = status.running != null;
+			const runningNames = running ? [].concat(status.running).map(targetName).join("、") : "";
 			const paused = status.paused != null;
 			const pill = running
 				? h("span", { className: "dsh-mem-pill running" }, h("span", { className: "dsh-mem-dot" }), "整理中")
@@ -176,7 +187,7 @@ window.__ModuleLoader__.load({
 				h("div", { className: "dsh-mem-status" },
 					h("div", { className: "dsh-mem-status-main" },
 						pill,
-						h("span", { className: "dsh-mem-meta" }, running ? `正在整理：${projectName(status.running.cwd)}` : `待处理：${status.pendingCount ?? 0} 个会话`)),
+						h("span", { className: "dsh-mem-meta" }, running ? `正在整理：${runningNames}` : `待处理：${status.pendingCount ?? 0} 个会话`)),
 					h("button", { type: "button", className: "dsh-mem-btn primary", disabled: running, onClick: props.onDream }, "立即 dream")),
 				paused ? h("div", { className: "dsh-mem-banner" }, `自动 dreaming 已暂停（${formatTime(status.paused.since)}）：${status.paused.reason}。修好模型后点「立即 dream」补跑，成功后自动恢复。`) : null);
 		}
@@ -213,6 +224,10 @@ window.__ModuleLoader__.load({
 				const minutes = Number(event.target.value);
 				if (Number.isInteger(minutes) && minutes >= 1) host.set("idleMinutes", minutes);
 			};
+			const setConcurrency = (event) => {
+				const count = Number(event.target.value);
+				if (Number.isInteger(count) && count >= 1) host.set("concurrency", count);
+			};
 			/* A model change resets the effort: levels differ between models. */
 			const chooseModel = (event) => {
 				const [nextProvider, nextModel] = event.target.value === "" ? ["", ""] : JSON.parse(event.target.value);
@@ -244,6 +259,13 @@ window.__ModuleLoader__.load({
 							control: h("span", { className: "dsh-mem-number" },
 								h("input", { type: "number", min: 1, className: "dsh-mem-field", "aria-label": "空闲阈值（分钟）", defaultValue: value.idleMinutes ?? 10, onChange: setIdle }),
 								"分钟")
+						}),
+						h(Row, {
+							title: "并发数",
+							desc: "最多同时整理几个项目；同一项目始终一次只跑一个。越大越快，同一时刻消耗的 token 也越多。",
+							control: h("span", { className: "dsh-mem-number" },
+								h("input", { type: "number", min: 1, className: "dsh-mem-field", "aria-label": "并发数", defaultValue: value.concurrency ?? 4, onChange: setConcurrency }),
+								"个")
 						}),
 						h(Row, {
 							title: "整理模型",

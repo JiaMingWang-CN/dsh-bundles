@@ -48,7 +48,7 @@ test("write with null version on an existing file throws MEMORY_CONFLICT", async
 	await assert.rejects(store.write("user", undefined, "a.md", "v2", null), { code: "MEMORY_CONFLICT" });
 });
 
-test("remove with matching version deletes; tracker counts created/modified/deleted", async (t) => {
+test("remove with matching version deletes; tracker counts each note once by its net change", async (t) => {
 	const { store, cleanup } = await fresh();
 	t.after(cleanup);
 	const tracker = createChangeTracker();
@@ -58,7 +58,7 @@ test("remove with matching version deletes; tracker counts created/modified/dele
 	await assert.rejects(store.remove("project", CWD, "b.md", "stale"), { code: "MEMORY_CONFLICT" });
 	await store.remove("project", CWD, "b.md", b.version, tracker);
 	assert.equal(await store.read("project", CWD, "b.md"), null);
-	assert.deepEqual(tracker.summary(), { created: 2, modified: 1, deleted: 1 });
+	assert.deepEqual(tracker.summary(), { created: 1, modified: 0, deleted: 0, paths: { created: ["a.md"], modified: [], deleted: [] } });
 });
 
 test("list omits .state and non-.md files and reports nested paths with forward slashes", async (t) => {

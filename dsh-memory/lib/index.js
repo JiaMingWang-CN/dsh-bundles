@@ -14,13 +14,14 @@
  */
 import z from "@deepseek-ai/schemastery";
 import { join } from "node:path";
+import { stat } from "node:fs/promises";
 import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
-import { resolveMemoryRoot } from "./paths.js";
+import { resolveMemoryRoot, sameProject } from "./paths.js";
 import { MemoryStore } from "./store.js";
 import { installMemoryTools } from "./tools.js";
 import { installIndexInjection } from "./inject.js";
 import { DreamState } from "./state.js";
-import { installTrigger } from "./trigger.js";
+import { installTrigger, isEligible } from "./trigger.js";
 import { runDream } from "./dream.js";
 import { DreamRunner, reconcile, pruneDreamSessions } from "./runner.js";
 import { installDreamCommand } from "./command.js";
@@ -47,6 +48,7 @@ const Config = z.object({
 	enabled: z.boolean().default(true).volatile(),
 	autoDream: z.boolean().default(true).volatile(),
 	idleMinutes: z.natural().min(1).default(10).volatile(),
+	concurrency: z.natural().min(1).default(4).volatile(),
 	indexMaxBytes: z.natural().min(512).default(4096).volatile(),
 	dreamProvider: z.string().default("").volatile(),
 	dreamModel: z.string().default("").volatile(),
@@ -72,13 +74,25 @@ async function apply(ctx, config) {
 	/* Settings channel: the host publishes `status` (retrying writes made before the plugin is active). */
 	const status = createStatusPublisher({ name, root, warn: (message) => ctx.logger.warn(message) });
 	ctx.effect(() => () => status.detach());
+	/* Projects a cross-project run covers: every existing directory with sessions, and its note count. */
+	const listProjects = async () => {
+		const projects = [];
+		for (const { header } of await ctx.sessionQuery.listSessions()) {
+			if (!isEligible(header) || projects.some((project) => sameProject(project.cwd, header.cwd))) continue;
+			if (await stat(header.cwd).then(() => true, () => false)) projects.push({ cwd: header.cwd, notes: 0 });
+		}
+		for (const project of projects) project.notes = (await store.list("project", project.cwd)).filter((entry) => entry.path !== "INDEX.md").length;
+		return projects;
+	};
+	const pruneCache = new Map();
 	const runner = new DreamRunner({
 		state,
 		config,
 		onStatus: (snapshot) => status.publish(snapshot),
 		runDream: (job) => runDream(ctx, { ...job, store }),
 		resolveSelection: () => resolveSelection(config, ctx.get("agentDefaultModel")),
-		afterRun: () => pruneDreamSessions(state, join(resolveDshHome(), "sessions"))
+		listProjects,
+		afterRun: () => pruneDreamSessions(join(resolveDshHome(), "sessions"), { cache: pruneCache })
 	});
 	ctx.effect(() => () => runner.stop());
 	installTrigger(ctx, {
@@ -93,13 +107,13 @@ async function apply(ctx, config) {
 		status.attach(child.settings);
 		child.effect(() => () => status.detach());
 	});
-	/* A changed `dreamRequest` nonce from the settings page asks for a manual run over every project. */
+	/* A changed `dreamRequest` nonce from the settings page asks for a manual run over every project, then a cross-project run. */
 	let lastRequest = config.dreamRequest.get();
 	ctx.on("loader/volatile-update", () => {
 		const request = config.dreamRequest.get();
 		if (request === lastRequest) return;
 		lastRequest = request;
-		if (request !== "" && config.enabled.get()) runner.runManual({}).catch((error) => ctx.logger.warn("memory: manual dreaming failed: %s", error?.message));
+		if (request !== "" && config.enabled.get()) runner.runManual({ cross: true }).catch((error) => ctx.logger.warn("memory: manual dreaming failed: %s", error?.message));
 	});
 	ctx.inject(["commands"], (child) => {
 		installDreamCommand(child, { config, runner, reconcile: (scope) => reconcile(ctx.sessionQuery, state, scope) });

@@ -54,7 +54,7 @@ CodeGraph 与 Context7 由 `npx -y` 启动，Browser-Use 由 `uvx` 启动，都�
 `dsh-memory` 让 agent 跨会话记住犯过的错、做成功的路子和验证过的规则：
 
 - 记忆分项目级与用户级，每个会话开始时注入两份限容 4 KB 的索引，正文按需读取；
-- 会话结束后自动 dreaming：后台隐藏 agent 对照会话记录纠错、合并、精简记忆，全局串行；
+- 会话结束后自动 dreaming：后台隐藏 agent 对照会话记录纠错、合并、精简记忆，不同项目并行（默认最多 4 个）、同一项目串行；
 - 设置侧栏“记忆”页可查看运行日志、待处理数并“立即 dream”；失败会暂停自动 dreaming，修好模型后手动补跑即恢复；
 - `/dream` 立即整理当前项目；dreaming 消耗自己的模型 token，可在设置页关闭自动运行。
 
@@ -136,7 +136,7 @@ Browser-Use 通过 `uvx` 启动，首次运行会下载 Python 包；需要本�
 
 ### 使用跨会话记忆
 
-安装后默认开启，agent 会自行读写记忆。打开“设置 → 记忆”可以关闭自动 dreaming、调整空闲阈值或指定 dreaming 模型；在会话里输入 `/dream` 可立即整理当前项目。记忆是 `~/.dsh/memory/` 下的普通 Markdown，可直接查看和编辑。说明见 `dsh-memory/README.md`。
+安装后默认开启，agent 会自行读写记忆。打开“设置 → 记忆”可以关闭自动 dreaming、调整空闲阈值、并发数或指定 dreaming 模型；在会话里输入 `/dream` 可立即整理当前项目。记忆是 `~/.dsh/memory/` 下的普通 Markdown，可直接查看和编辑。说明见 `dsh-memory/README.md`。
 
 ### 使用 MCP 工具
 

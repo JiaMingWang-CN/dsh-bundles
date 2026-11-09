@@ -65,8 +65,8 @@ test("transcript tools read pages and search within the batch, refusing other pr
 	await assert.rejects(tools.transcript_read.execute({ sessionId: "other" }, {}), /another project/);
 });
 
-function fakeAgents({ turnEnd = { kind: "completed" }, createError } = {}) {
-	const record = { disposed: false, restricted: undefined, registered: [], followups: [], options: undefined };
+function fakeAgents({ turnEnd = { kind: "completed" }, createError, extraEvents = [], onIdle } = {}) {
+	const record = { disposed: false, restricted: undefined, registered: [], tools: {}, followups: [], options: undefined, cancelled: [], session: undefined };
 	return {
 		record,
 		agents: {
@@ -76,16 +76,17 @@ function fakeAgents({ turnEnd = { kind: "completed" }, createError } = {}) {
 				options.setup({
 					tools: {
 						restrict: (filter) => { record.restricted = filter; },
-						register: (tool) => { record.registered.push(tool.name); return () => {}; }
+						register: (tool) => { record.registered.push(tool.name); record.tools[tool.name] = tool; return () => {}; }
 					}
 				});
-				const events = [userMsg(1, "dream"), assistantMsg(2, "done"), { seq: 3, type: "turn/end", data: { turn: 1, reason: turnEnd } }];
+				const events = [userMsg(1, "dream"), assistantMsg(2, "done"), ...extraEvents, { seq: 99, type: "turn/end", data: { turn: 1, reason: turnEnd } }];
+				record.session = { header: { id: options.sessionId }, snapshotEvents: () => events };
 				return {
 					agent: {
 						followup: (message) => record.followups.push(message),
-						whenIdle: async () => {},
-						cancel: () => {},
-						session: { snapshotEvents: () => events }
+						whenIdle: async () => { await onIdle?.(record); },
+						cancel: (reason) => { record.cancelled.push(reason); },
+						session: record.session
 					},
 					dispose: async () => { record.disposed = true; }
 				};
@@ -108,11 +109,12 @@ test("creates hidden root agent with restricted tools", async (t) => {
 	assert.equal(fake.record.options.parentAgent, undefined);
 	assert.deepEqual(fake.record.options.agentOptions, { provider: "p", model: "m" });
 	assert.deepEqual(fake.record.restricted, { allow: [] });
-	assert.deepEqual(fake.record.registered.sort(), ["memory_delete", "memory_list", "memory_read", "memory_write", "transcript_read", "transcript_search"]);
+	assert.deepEqual(fake.record.registered.sort(), ["dream_report", "memory_delete", "memory_list", "memory_read", "memory_write", "transcript_read", "transcript_search"]);
 	assert.equal(fake.record.followups[0].role, "user");
 	assert.match(fake.record.followups[0].content[0].text, /s1/);
 	assert.equal(result.dreamSessionId, fake.record.options.sessionId);
-	assert.deepEqual(result.changes, { created: 0, modified: 0, deleted: 0 });
+	assert.deepEqual(result.changes, { created: 0, modified: 0, deleted: 0, paths: { created: [], modified: [], deleted: [] } });
+	assert.deepEqual(result.issues, ["ended without dream_report"]);
 });
 
 test("reports failure when the turn ends on model error, and always disposes", async (t) => {
@@ -121,6 +123,77 @@ test("reports failure when the turn ends on model error, and always disposes", a
 	assert.equal(result.ok, false);
 	assert.match(result.error, /401 Unauthorized/);
 	assert.equal(fake.record.disposed, true);
+});
+
+test("an ok run lists tool errors and what the agent reported unresolved", async (t) => {
+	const fake = fakeAgents({
+		extraEvents: [toolResult(3, "Error: session not found: 3f2a", true)],
+		onIdle: (record) => record.tools.dream_report.execute({ summary: "merged two notes", unresolved: "windows.md: cited session missing\n" }, {})
+	});
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.ok, true);
+	assert.equal(result.summary, "merged two notes");
+	assert.deepEqual(result.issues, ["tool error: Error: session not found: 3f2a", "windows.md: cited session missing"]);
+});
+
+test("the run is cancelled at the step budget and still counts as a run, with the budget as an issue", async (t) => {
+	let listener;
+	const fake = fakeAgents({
+		turnEnd: { kind: "aborted" },
+		onIdle: (record) => {
+			for (let i = 0; i < 45; i++) listener(record.session, { type: "assistant/message" });
+			listener({ header: { id: "someone-else" } }, { type: "assistant/message" });
+		}
+	});
+	const ctx = { agents: fake.agents, sessionQuery: fakeSessionQuery({}), on: (name, fn) => { if (name === "session/event") listener = fn; return () => { listener = undefined; }; } };
+	const result = await runDream(ctx, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(fake.record.cancelled.length, 1);
+	assert.match(String(fake.record.cancelled[0]?.message), /step budget of 40/);
+	assert.equal(result.ok, true);
+	assert.match(result.issues[0], /step budget of 40 reached/);
+	assert.equal(listener, undefined, "the budget listener is removed");
+});
+
+test("the hidden session gets a readable pinned title", async (t) => {
+	const renamed = [];
+	const fake = fakeAgents();
+	const ctx = { agents: fake.agents, sessionQuery: fakeSessionQuery({}), get: (name) => (name === "sessionTitle" ? { rename: (session, title) => renamed.push([session.header.id, title]) } : undefined) };
+	await runDream(ctx, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.deepEqual(renamed, [[fake.record.options.sessionId, "记忆整理 · demo"]]);
+	assert.match(fake.record.followups[0].content[0].text, /^Memory consolidation · demo\n/);
+});
+
+test("a cross-project run sees every listed project, reads any project's transcript, and has no search", async (t) => {
+	const fake = fakeAgents();
+	const projects = [{ cwd: CWD, notes: 3 }, { cwd: "C:\\Programs\\n2sql", notes: 0 }];
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { projects, store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.ok, true);
+	assert.deepEqual(fake.record.registered.sort(), ["dream_report", "memory_delete", "memory_list", "memory_read", "memory_write", "transcript_read"]);
+	const prompt = fake.record.followups[0].content[0].text;
+	assert.match(prompt, /^Memory consolidation · all projects/);
+	assert.match(prompt, /n2sql · 0 notes/);
+	assert.match(prompt, /Demote/);
+	assert.match(prompt, /Promote/);
+});
+
+test("transcript_read resolves a unique id prefix and names the session's project", async () => {
+	const full = "session-3f2a9c11-0000-4000-8000-000000000001";
+	const near = "session-3f2b0000-0000-4000-8000-000000000002";
+	const sessions = {
+		[full]: { header: { id: full, cwd: CWD }, events: [userMsg(1, "use port from config")] },
+		[near]: { header: { id: near, cwd: CWD }, events: [] },
+		"session-9999": { header: { id: "session-9999", cwd: "C:\\elsewhere" }, events: [] }
+	};
+	const query = { ...fakeSessionQuery(sessions), listSessions: async () => Object.values(sessions).map(({ header }) => ({ header, live: false })) };
+	const tools = Object.fromEntries(transcriptTools({ sessionQuery: query }, { cwd: CWD, sessionIds: [] }).map((tool) => [tool.name, tool]));
+	const page = (await tools.transcript_read.execute({ sessionId: "3f2a9c11" }, {})).text;
+	assert.ok(page.startsWith(`Session ${full} · project ${CWD}`));
+	assert.match(page, /use port from config/);
+	await assert.rejects(tools.transcript_read.execute({ sessionId: "3f2" }, {}), /ambiguous/);
+	await assert.rejects(tools.transcript_read.execute({ sessionId: "9999" }, {}), /No session "9999"/);
+	const cross = Object.fromEntries(transcriptTools({ sessionQuery: query }, { sessionIds: [] }).map((tool) => [tool.name, tool]));
+	assert.deepEqual(Object.keys(cross), ["transcript_read"]);
+	assert.ok((await cross.transcript_read.execute({ sessionId: "9999" }, {})).text.startsWith("Session session-9999 · project C:\\elsewhere"));
 });
 
 test("only a completed turn counts as success", async (t) => {

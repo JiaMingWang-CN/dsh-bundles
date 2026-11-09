@@ -1,6 +1,7 @@
 /**
  * Durable dreaming state under `<memory root>/.state/`:
- *   state.json  — pending queue, per-session watermarks, pause flag
+ *   state.json  — pending queue, per-session watermarks, pause flag,
+ *                 cross-project bookkeeping
  *   log.jsonl   — run log, last 200 entries
  *
  * A session leaves the queue only through `complete()` after a successful
@@ -15,8 +16,10 @@ const LOG_LIMIT = 200;
 
 /**
  * @typedef {{ sessionId: string, cwd: string, endedAt: number, seq: number }} Job
- * @typedef {{ at: number, cwd: string, sessionIds: string[], ok: boolean, trigger: "auto" | "manual",
- *   changes?: { created: number, modified: number, deleted: number }, error?: string, dreamSessionId?: string }} LogEntry
+ * @typedef {{ at: number, cwd?: string, scope?: "cross", sessionIds: string[], ok: boolean, trigger: "auto" | "manual",
+ *   changes?: { created: number, modified: number, deleted: number, paths?: object }, issues?: string[], summary?: string,
+ *   error?: string, dreamSessionId?: string }} LogEntry
+ *   A cross-project run has `scope: "cross"` and no `cwd`; `issues` lists what an ok run left unresolved.
  */
 
 async function readIfExists(file) {
@@ -44,8 +47,8 @@ export class DreamState {
 		this.dir = join(root, ".state");
 		this.stateFile = join(this.dir, "state.json");
 		this.logFile = join(this.dir, "log.jsonl");
-		/** @type {{ queue: Job[], watermarks: Record<string, number>, paused: { since: number, reason: string } | null, dreamSessions?: string[] }} */
-		this.data = { queue: [], watermarks: {}, paused: null, dreamSessions: [] };
+		/** @type {{ queue: Job[], watermarks: Record<string, number>, paused: { since: number, reason: string } | null, cross?: { at?: number, projects: string[] } }} */
+		this.data = { queue: [], watermarks: {}, paused: null };
 		/** @type {LogEntry[]} */
 		this.log = [];
 		this.chain = Promise.resolve();
@@ -110,23 +113,28 @@ export class DreamState {
 		});
 	}
 
-	/** @returns {string[]} ids of the hidden dreaming sessions created so far, oldest first. */
-	dreamSessions() {
-		return [...(this.data.dreamSessions ?? [])];
+	/** @returns {string[]} projects consolidated since the last cross-project run. */
+	crossProjects() {
+		return [...(this.data.cross?.projects ?? [])];
 	}
 
-	/** Remember a dreaming session so it can be pruned later. */
-	recordDreamSession(id) {
+	/** @returns {number | undefined} epoch ms of the last cross-project run. */
+	get crossAt() {
+		return this.data.cross?.at;
+	}
+
+	/** Note a successful project run, so a cross-project run becomes due. */
+	noteProjectRun(cwd) {
 		return this.persist(() => {
-			this.data.dreamSessions = [...(this.data.dreamSessions ?? []), id];
+			const projects = this.data.cross?.projects ?? [];
+			this.data.cross = { ...this.data.cross, projects: projects.includes(cwd) ? projects : [...projects, cwd] };
 		});
 	}
 
-	/** Drop pruned dreaming sessions from the record. */
-	forgetDreamSessions(ids) {
-		const gone = new Set(ids);
+	/** Mark a cross-project run done. */
+	completeCross(at) {
 		return this.persist(() => {
-			this.data.dreamSessions = (this.data.dreamSessions ?? []).filter((id) => !gone.has(id));
+			this.data.cross = { at, projects: [] };
 		});
 	}
 

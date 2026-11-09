@@ -17,9 +17,12 @@ const projectName = (cwd) => basename(cwd.replace(/[\\/]+$/, "")) || cwd;
  */
 export function formatReport(report) {
 	if (report.runs.length === 0) return "没有需要整理的会话。";
-	const lines = report.runs.map((run) => {
-		const head = `${run.ok ? "✔" : "✖"} ${projectName(run.cwd)} · 会话 ${run.sessionIds.length} 个 · `;
-		return run.ok ? `${head}新增 ${run.changes.created} / 修改 ${run.changes.modified} / 删除 ${run.changes.deleted}` : `${head}失败：${run.error}`;
+	const lines = report.runs.flatMap((run) => {
+		const issues = run.ok ? run.issues ?? [] : [];
+		const target = run.scope === "cross" ? "跨项目" : `${projectName(run.cwd)} · 会话 ${run.sessionIds.length} 个`;
+		const head = `${!run.ok ? "✖" : issues.length > 0 ? "⚠" : "✔"} ${target} · `;
+		if (!run.ok) return [`${head}失败：${run.error}`];
+		return [`${head}新增 ${run.changes.created} / 修改 ${run.changes.modified} / 删除 ${run.changes.deleted}${issues.length > 0 ? ` · 有 ${issues.length} 个问题` : ""}`, ...issues.map((issue) => `  - ${issue}`)];
 	});
 	if (!report.ok) lines.push("自动 dreaming 已暂停。修好模型后再运行 /dream 补跑。");
 	return lines.join("\n");
