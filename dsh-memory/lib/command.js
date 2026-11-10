@@ -24,7 +24,8 @@ export function formatReport(report) {
 		if (!run.ok) return [`${head}失败：${run.error}`];
 		return [`${head}新增 ${run.changes.created} / 修改 ${run.changes.modified} / 删除 ${run.changes.deleted}${issues.length > 0 ? ` · 有 ${issues.length} 个问题` : ""}`, ...issues.map((issue) => `  - ${issue}`)];
 	});
-	if (!report.ok) lines.push("自动 dreaming 已暂停。修好模型后再运行 /dream 补跑。");
+	/* A batch that was set aside is a failed run too, but it does not pause anything. */
+	if (!report.ok && report.runs.some((run) => !run.ok && !run.skipped)) lines.push("自动 dreaming 已暂停。排查原因（模型、密钥或网络）后再运行 /dream 补跑。");
 	return lines.join("\n");
 }
 

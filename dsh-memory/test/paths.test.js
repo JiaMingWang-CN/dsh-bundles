@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { encodeCwd, partitionDir, resolveEntry, sameProject } from "../lib/paths.js";
+import { encodeCwd, partitionDir, resolveEntry, sameProject, isIndexPath } from "../lib/paths.js";
 
 test("encodeCwd matches DSH session directory names", () => {
 	assert.equal(encodeCwd("C:\\Programs\\dsh-bundles"), "--C-Programs-dsh-bundles--");
@@ -41,4 +41,25 @@ test("resolveEntry rejects traversal, absolute paths, hidden/.state and non-.md 
 test("resolveEntry accepts nested notes", () => {
 	assert.equal(resolveEntry("/m/user", "gameplay/rules.md"), join("/m/user", "gameplay", "rules.md"));
 	assert.equal(resolveEntry("/m/user", "INDEX.md"), join("/m/user", "INDEX.md"));
+});
+
+test("note paths with Windows-unsafe characters are refused", () => {
+	const dir = join("C:\\", "memory", "user");
+	for (const bad of ["ab:cd.md", "INDEX.md::$DATA", "a*.md", "a?.md", 'a"b.md', "a<b.md", "CON.md", "nul.md", "com1.md", "lpt9.txt.md", "dir./a.md", "dir /a.md", "LONGNA~1.md", "abc~2", "x\u0001.md"]) {
+		assert.throws(() => resolveEntry(dir, bad), /MEMORY_PATH_INVALID|not allowed|invalid/i, bad);
+	}
+	for (const ok of ["a.md", "testing/db.md", "笔记/数据库.md", "my note (2).md", "console.md", "a-b_c.md", "notes~2024.md", "release~2.1-notes.md"]) assert.doesNotThrow(() => resolveEntry(dir, ok), ok);
+});
+
+test("isIndexPath is case-insensitive and accepts either separator style only for the root file", () => {
+	assert.equal(isIndexPath("INDEX.md"), true);
+	assert.equal(isIndexPath("index.md"), true);
+	assert.equal(isIndexPath("Index.MD"), true);
+	assert.equal(isIndexPath("sub/INDEX.md"), false);
+});
+
+test("resolveEntry gives the root index one spelling", () => {
+	const dir = join("C:\\", "memory", "user");
+	assert.equal(resolveEntry(dir, "index.md"), join(dir, "INDEX.md"));
+	assert.equal(resolveEntry(dir, "sub/index.md"), join(dir, "sub", "index.md"), "only the partition's own index is canonical");
 });

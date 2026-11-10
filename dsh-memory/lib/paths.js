@@ -82,6 +82,10 @@ export function partitionDir(root, scope, cwd) {
 	return join(root, "projects", encodeCwd(cwd));
 }
 
+// eslint-disable-next-line no-control-regex
+const UNSAFE_SEGMENT = /[<>:"|?*\x00-\x1f]|^.{1,6}~\d(\..*)?$/;
+const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+
 /**
  * Resolve a model-supplied relative note path inside a partition.
  * Only relative `.md` paths without empty, dot or hidden segments are allowed,
@@ -96,7 +100,20 @@ export function resolveEntry(dir, relPath) {
 	const segments = relPath.split(/[\\/]/);
 	for (const segment of segments) {
 		if (segment.length === 0 || segment.startsWith(".")) throw new MemoryPathError(`invalid memory path segment in ${relPath}`);
+		/* NTFS alternate streams (`a:b`), wildcards, Windows-stripped trailing dots/spaces, 8.3 aliases and device names. */
+		if (UNSAFE_SEGMENT.test(segment) || /[. ]$/.test(segment) || RESERVED_NAME.test(segment)) throw new MemoryPathError(`memory path segment has characters that are not allowed: ${relPath}`);
 	}
+	if (segments.length === 1 && isIndexPath(segments[0])) segments[0] = "INDEX.md";
 	if (!segments.at(-1).endsWith(".md")) throw new MemoryPathError(`memory notes must be .md files: ${relPath}`);
+	/* `index.md` was given the canonical spelling INDEX.md above: on a case-sensitive disk it would be a different file that nothing recognises as the index. */
 	return join(dir, ...segments);
+}
+
+/**
+ * Whether a note path names the partition's INDEX.md. Case-insensitive: on
+ * Windows and macOS `index.md` is the same file, so it must get the same limits.
+ * @param {string} path
+ */
+export function isIndexPath(path) {
+	return path.replace(/\\/g, "/").toLowerCase() === "index.md";
 }

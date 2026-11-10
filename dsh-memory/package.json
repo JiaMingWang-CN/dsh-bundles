@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Cross-session agent memory for DSH: notes the agent keeps across sessions, plus automatic dreaming that corrects and compacts them against session transcripts",
   "type": "module",
+  "engines": {
+    "node": ">=22.15.0"
+  },
   "scripts": {
     "test": "node --test"
   },

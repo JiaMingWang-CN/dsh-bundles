@@ -9,8 +9,9 @@
  * so concurrent callers never interleave a read-modify-write.
  */
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { renameWithRetry } from "./fsutil.js";
 
 const LOG_LIMIT = 200;
 
@@ -33,8 +34,13 @@ async function readIfExists(file) {
 
 async function writeAtomic(file, content) {
 	const temp = `${file}.${randomUUID()}.tmp`;
-	await writeFile(temp, content, "utf8");
-	await rename(temp, file);
+	try {
+		await writeFile(temp, content, "utf8");
+		await renameWithRetry(temp, file);
+	} catch (error) {
+		await rm(temp, { force: true }).catch(() => {});
+		throw error;
+	}
 }
 
 export class DreamState {
@@ -51,13 +57,27 @@ export class DreamState {
 		this.data = { queue: [], watermarks: {}, paused: null };
 		/** @type {LogEntry[]} */
 		this.log = [];
+		/** True when `load()` found an unreadable state.json and started fresh. */
+		this.recovered = false;
 		this.chain = Promise.resolve();
 	}
 
 	/** Read persisted state; a missing directory means a fresh install. */
 	async load() {
 		const raw = await readIfExists(this.stateFile);
-		if (raw !== null) this.data = { queue: [], watermarks: {}, paused: null, ...JSON.parse(raw) };
+		if (raw !== null) {
+			try {
+				const parsed = JSON.parse(raw);
+				if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("state.json is not an object");
+				const data = { queue: [], watermarks: {}, paused: null, ...parsed };
+				if (!Array.isArray(data.queue) || typeof data.watermarks !== "object" || data.watermarks === null) throw new Error("state.json has a bad shape");
+				this.data = data;
+			} catch {
+				/* A corrupt state file must not stop the plugin: keep it aside for inspection and start fresh. */
+				await rename(this.stateFile, `${this.stateFile}.corrupt-${this.now()}`).catch(() => {});
+				this.recovered = true;
+			}
+		}
 		/* First load marks the install time: sessions created earlier are never backfilled. */
 		if (typeof this.data.installedAt !== "number") {
 			const installedAt = this.now();
@@ -109,7 +129,48 @@ export class DreamState {
 		const seqs = new Map(covered.map((job) => [job.sessionId, job.seq]));
 		return this.persist(() => {
 			for (const [sessionId, seq] of seqs) this.data.watermarks[sessionId] = Math.max(seq, this.data.watermarks[sessionId] ?? 0);
+			for (const [sessionId, seq] of seqs) {
+				const queued = this.data.queue.find((job) => job.sessionId === sessionId);
+				if (queued === undefined || queued.seq <= seq) delete this.data.attempts?.[sessionId];
+			}
 			this.data.queue = this.data.queue.filter((job) => !seqs.has(job.sessionId) || job.seq > seqs.get(job.sessionId));
+		});
+	}
+
+	/**
+	 * Count one failed run against each session of its batch.
+	 * @returns {Promise<Record<string, number>>} the new counts.
+	 */
+	noteFailure(sessionIds) {
+		const counts = {};
+		return this.persist(() => {
+			this.data.attempts ??= {};
+			for (const id of sessionIds) counts[id] = this.data.attempts[id] = (this.data.attempts[id] ?? 0) + 1;
+		}).then(() => counts);
+	}
+
+	/** A session made progress: its earlier failures no longer count against it. */
+	clearAttempts(sessionIds) {
+		if (!sessionIds.some((id) => this.data.attempts?.[id] !== undefined)) return Promise.resolve();
+		return this.persist(() => {
+			for (const id of sessionIds) delete this.data.attempts?.[id];
+		});
+	}
+
+	/** @returns {number} failed runs counted against a session since it last completed. */
+	attempts(sessionId) {
+		return this.data.attempts?.[sessionId] ?? 0;
+	}
+
+	/** Forget watermarks and failure counts of sessions that no longer exist (queued ones are kept). */
+	pruneSessions(existingIds) {
+		const keep = new Set(existingIds);
+		const stale = (id) => !keep.has(id) && !this.data.queue.some((job) => job.sessionId === id);
+		const ids = [...Object.keys(this.data.watermarks), ...Object.keys(this.data.attempts ?? {})];
+		if (!ids.some(stale)) return Promise.resolve();
+		return this.persist(() => {
+			for (const id of Object.keys(this.data.watermarks)) if (stale(id)) delete this.data.watermarks[id];
+			for (const id of Object.keys(this.data.attempts ?? {})) if (stale(id)) delete this.data.attempts[id];
 		});
 	}
 
@@ -127,7 +188,8 @@ export class DreamState {
 	noteProjectRun(cwd) {
 		return this.persist(() => {
 			const projects = this.data.cross?.projects ?? [];
-			this.data.cross = { ...this.data.cross, projects: projects.includes(cwd) ? projects : [...projects, cwd] };
+			/* The first project run starts the day: a cross-project run is never due right after it. */
+			this.data.cross = { ...this.data.cross, at: this.data.cross?.at ?? this.now(), projects: projects.includes(cwd) ? projects : [...projects, cwd] };
 		});
 	}
 
@@ -152,7 +214,7 @@ export class DreamState {
 		return this.data.paused;
 	}
 
-	/** @param {{ since: number, reason: string } | null} value */
+	/** @param {{ since: number, reason: string, kind?: "auth" | "repeated" | "manual" } | null} value */
 	setPaused(value) {
 		return this.persist(() => {
 			this.data.paused = value;

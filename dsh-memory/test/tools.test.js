@@ -17,9 +17,9 @@ async function setup(t, options = {}) {
 	return { store, tools };
 }
 
-test("memory tools are list/read/write/delete", async (t) => {
+test("memory tools are list/read/write/delete/move/search", async (t) => {
 	const { tools } = await setup(t);
-	assert.deepEqual(Object.keys(tools).sort(), ["memory_delete", "memory_list", "memory_read", "memory_write"]);
+	assert.deepEqual(Object.keys(tools).sort(), ["memory_delete", "memory_list", "memory_move", "memory_read", "memory_search", "memory_write"]);
 });
 
 test("memory_write then memory_read round-trips with version", async (t) => {
@@ -120,11 +120,102 @@ test("enabled=false unregisters tools; true re-registers", () => {
 		on: (event, fn) => { listeners[event] = fn; return () => {}; }
 	};
 	installMemoryTools(ctx, new MemoryStore("/unused"), { enabled: { get: () => enabled } });
-	assert.equal(registered.size, 4);
+	assert.equal(registered.size, 6);
 	enabled = false;
 	listeners["loader/volatile-update"]();
 	assert.equal(registered.size, 0);
 	enabled = true;
 	listeners["loader/volatile-update"]();
-	assert.equal(registered.size, 4);
+	assert.equal(registered.size, 6);
+});
+
+test("INDEX limits apply however the file name is cased", async (t) => {
+	const { tools } = await setup(t);
+	const big = "x".repeat(5000);
+	for (const path of ["INDEX.md", "index.md", "Index.MD"]) {
+		await assert.rejects(tools.memory_write.execute({ scope: "project", path, content: big }, execIn(CWD)), /limit is 4096/, path);
+	}
+	await assert.rejects(tools.memory_write.execute({ scope: "user", path: "index.md", content: big }, execIn(CWD)), /limit is 4096/);
+});
+
+test("memory_move renames within a partition, keeps the content and refuses INDEX.md", async (t) => {
+	const { tools, store } = await setup(t);
+	const written = await tools.memory_write.execute({ scope: "project", path: "a.md", content: "rule" }, execIn(CWD));
+	const version = written.text.match(/version: (\w+)/)[1];
+	const moved = await tools.memory_move.execute({ scope: "project", path: "a.md", version, toPath: "topic/a.md" }, execIn(CWD));
+	assert.match(moved.text, /Moved a.md/);
+	assert.equal((await store.read("project", CWD, "topic/a.md")).content, "rule");
+	await assert.rejects(tools.memory_move.execute({ scope: "project", path: "topic/a.md", version, toPath: "INDEX.md" }, execIn(CWD)), /INDEX.md cannot be moved/);
+	assert.equal(tools.memory_move.parameters.toScope, undefined, "a session cannot move a note between partitions");
+});
+
+test("cross-project memory_move promotes between partitions and records both sides", async (t) => {
+	const tracker = createChangeTracker();
+	const { tools, store } = await setup(t, { projects: [CWD], tracker });
+	const written = await tools.memory_write.execute({ scope: "project", project: CWD, path: "lesson.md", content: "x" }, execIn());
+	const version = written.text.match(/version: (\w+)/)[1];
+	await tools.memory_move.execute({ scope: "project", project: CWD, path: "lesson.md", version, toScope: "user", toPath: "lesson.md" }, execIn());
+	assert.equal(await store.read("project", CWD, "lesson.md"), null);
+	assert.equal((await store.read("user", undefined, "lesson.md")).content, "x");
+	const summary = tracker.summary();
+	assert.deepEqual(summary.paths.created, ["user/lesson.md"]);
+	assert.deepEqual(summary.paths.deleted, []);
+});
+
+test("memory_search returns hits with their location", async (t) => {
+	const { tools } = await setup(t);
+	await tools.memory_write.execute({ scope: "project", path: "a.md", content: "line one\nFlaky on Windows" }, execIn(CWD));
+	assert.equal((await tools.memory_search.execute({ scope: "project", query: "flaky" }, execIn(CWD))).text, "a.md:2: Flaky on Windows");
+	assert.equal((await tools.memory_search.execute({ scope: "project", query: "zzz" }, execIn(CWD))).text, "No matches.");
+});
+
+test("a read-only project partition refuses writes, deletes and moves into it, but still reads", async (t) => {
+	const { tools, store } = await setup(t, { projectWritable: false });
+	const { version } = await store.write("project", CWD, "old.md", "kept", null);
+	await assert.rejects(tools.memory_write.execute({ scope: "project", path: "n.md", content: "x" }, execIn(CWD)), /no longer exists/);
+	await assert.rejects(tools.memory_delete.execute({ scope: "project", path: "old.md", version }, execIn(CWD)), /no longer exists/);
+	assert.match((await tools.memory_read.execute({ scope: "project", path: "old.md" }, execIn(CWD))).text, /kept/);
+	assert.equal((await tools.memory_write.execute({ scope: "user", path: "u.md", content: "x", basis: "user-stated" }, execIn(CWD))).text.startsWith("Saved"), true);
+});
+
+test("a dreaming tracker hands the store a backup hook for every tool that changes a note", async (t) => {
+	const backed = [];
+	const tracker = createChangeTracker({ backup: async (file) => { backed.push(file); } });
+	const { tools } = await setup(t, { tracker });
+	const first = await tools.memory_write.execute({ scope: "project", path: "a.md", content: "v1" }, execIn(CWD));
+	assert.deepEqual(backed, [], "creating needs no backup");
+	const version = first.text.match(/version: (\w+)/)[1];
+	await tools.memory_write.execute({ scope: "project", path: "a.md", content: "v2", version }, execIn(CWD));
+	assert.equal(backed.length, 1);
+});
+
+test("a subagent session can read memory but not change it", async (t) => {
+	const { tools, store } = await setup(t);
+	const { version } = await store.write("project", CWD, "a.md", "kept", null);
+	const sub = { agent: { session: { header: { id: "c", cwd: CWD, origin: "subagent" } } } };
+	const child = { agent: { session: { header: { id: "d", cwd: CWD, parentSession: "p" } } } };
+	for (const exec of [sub, child]) {
+		assert.match((await tools.memory_read.execute({ scope: "project", path: "a.md" }, exec)).text, /kept/);
+		assert.match((await tools.memory_list.execute({ scope: "project" }, exec)).text, /a\.md/);
+		await assert.rejects(tools.memory_write.execute({ scope: "project", path: "b.md", content: "x" }, exec), /Subagents cannot change memory/);
+		await assert.rejects(tools.memory_delete.execute({ scope: "project", path: "a.md", version }, exec), /Subagents cannot change memory/);
+		await assert.rejects(tools.memory_move.execute({ scope: "project", path: "a.md", version, toPath: "c.md" }, exec), /Subagents cannot change memory/);
+	}
+	assert.equal((await store.read("project", CWD, "a.md")).content, "kept");
+	assert.match((await tools.memory_write.execute({ scope: "project", path: "b.md", content: "x" }, execIn(CWD))).text, /^Saved/, "the parent session still writes");
+});
+
+test("a note holding a recognisable secret is refused", async (t) => {
+	const { tools } = await setup(t);
+	for (const secret of ["-----BEGIN RSA PRIVATE KEY-----\nabc", "key AKIAABCDEFGHIJKLMNOP", "token sk-abcdefghijklmnopqrstuvwx", "ghp_" + "a".repeat(36), "AIza" + "b".repeat(35)]) {
+		await assert.rejects(tools.memory_write.execute({ scope: "project", path: "s.md", content: secret }, execIn(CWD)), /looks like a secret/, secret.slice(0, 12));
+	}
+	assert.match((await tools.memory_write.execute({ scope: "project", path: "ok.md", content: "The key is configured in .env (OPENAI_API_KEY); sk-... is not stored." }, execIn(CWD))).text, /^Saved/);
+});
+
+test("a note created as index.md is stored and found as INDEX.md", async (t) => {
+	const { tools, store } = await setup(t);
+	await tools.memory_write.execute({ scope: "project", path: "index.md", content: "- [a](a.md)" }, execIn(CWD));
+	assert.deepEqual((await store.list("project", CWD)).map((entry) => entry.path), ["INDEX.md"]);
+	assert.match((await tools.memory_read.execute({ scope: "project", path: "Index.MD" }, execIn(CWD))).text, /a\.md/);
 });

@@ -37,9 +37,10 @@ window.__ModuleLoader__.load({
 			".dsh-mem-field{box-sizing:border-box;height:32px;padding:0 10px;border-radius:var(--dsw-radius-md);font:inherit;font-size:13px;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary);outline:none;transition:border-color .15s}",
 			".dsh-mem-field:focus{border-color:var(--dsw-alias-brand-primary)}",
 			".dsh-mem-field:disabled{color:var(--dsw-alias-label-tertiary);cursor:default}",
+			".dsh-mem-field.invalid{border-color:var(--dsw-alias-state-error-primary)}",
 			"select.dsh-mem-field{width:260px;cursor:pointer}",
 			".dsh-mem-number{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--dsw-alias-label-tertiary)}",
-			".dsh-mem-number .dsh-mem-field{width:64px;text-align:center}",
+			".dsh-mem-number .dsh-mem-field{width:76px;text-align:center}",
 			".dsh-mem-status{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0}",
 			".dsh-mem-status-main{display:flex;align-items:center;gap:10px;min-width:0}",
 			".dsh-mem-pill{display:inline-flex;align-items:center;gap:6px;flex:none;padding:2px 8px;border-radius:var(--dsw-radius-sm);font-size:12px;line-height:18px;border:.5px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary)}",
@@ -56,7 +57,9 @@ window.__ModuleLoader__.load({
 			".dsh-mem-btn:disabled{opacity:.45;cursor:default}",
 			".dsh-mem-banner{margin:0 0 12px;padding:8px 12px;border-radius:var(--dsw-radius-md);font-size:12px;line-height:18px;color:var(--dsw-alias-state-warn-label,var(--dsw-alias-state-warn-primary));background:var(--dsw-alias-state-warn-tertiary,transparent);border:.5px solid var(--dsw-alias-state-warn-secondary,var(--dsw-alias-border-l3))}",
 			".dsh-mem-log{display:flex;align-items:center;gap:10px;padding:10px 0;font-size:13px;line-height:20px}",
-			".dsh-mem-log+.dsh-mem-log{border-top:.5px solid var(--dsw-alias-border-l2)}",
+			".dsh-mem-log+.dsh-mem-log,.dsh-mem-logitem+.dsh-mem-logitem{border-top:.5px solid var(--dsw-alias-border-l2)}",
+			".dsh-mem-detail{margin:0 0 10px;padding:8px 12px;border-radius:var(--dsw-radius-md);font-size:12px;line-height:19px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;gap:4px;word-break:break-all}",
+			".dsh-mem-detail code{font-family:var(--dsw-font-mono,ui-monospace,monospace);font-size:11.5px}",
 			".dsh-mem-log .dsh-mem-dot.ok{background:var(--dsw-alias-state-success-primary)}",
 			".dsh-mem-log .dsh-mem-dot.fail{background:var(--dsw-alias-state-error-primary)}",
 			".dsh-mem-time{flex:none;width:84px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary)}",
@@ -111,6 +114,12 @@ window.__ModuleLoader__.load({
 			return { disabled: reasoning === undefined && effort === "", options };
 		}
 
+		/** What the user should do about a paused state, by why it paused. */
+		function pausedHint(paused) {
+			if (paused.kind === "auth") return "修好模型或密钥后点「立即 dream」补跑，成功后自动恢复。";
+			if (paused.kind === "repeated") return "连续多次失败，多半是网络或服务暂时不可用；稳定后点「立即 dream」补跑，成功后自动恢复。";
+			return "排查原因后点「立即 dream」补跑，成功后自动恢复。";
+		}
 		const pad = (n) => String(n).padStart(2, "0");
 		/** `MM-DD HH:mm` in local time. */
 		function formatTime(ms) {
@@ -142,6 +151,29 @@ window.__ModuleLoader__.load({
 					props.desc ? h("div", { className: "dsh-mem-desc" }, props.desc) : null),
 				props.control);
 		}
+		/**
+		 * Integer input that shows the stored value (also when it arrives after the first render), saves only valid
+		 * values, marks invalid input and falls back to the stored value on blur.
+		 */
+		function NumberField(props) {
+			const [text, setText] = React.useState(String(props.value));
+			React.useEffect(() => setText(String(props.value)), [props.value]);
+			const parse = (raw) => {
+				const n = Number(raw);
+				return raw.trim() !== "" && Number.isInteger(n) && n >= props.min && n <= props.max ? n : null;
+			};
+			const invalid = parse(text) === null;
+			return h("input", {
+				type: "number", min: props.min, max: props.max, className: "dsh-mem-field" + (invalid ? " invalid" : ""), "aria-label": props.label, "aria-invalid": invalid ? "true" : "false",
+				title: invalid ? `请输入 ${props.min}–${props.max} 之间的整数` : undefined, value: text,
+				onChange: (event) => {
+					setText(event.target.value);
+					const n = parse(event.target.value);
+					if (n !== null) props.onCommit(n);
+				},
+				onBlur: () => setText(String(props.value))
+			});
+		}
 		function Select(props) {
 			return h("select", { className: "dsh-mem-field", "aria-label": props.label, value: props.value, disabled: props.disabled, onChange: props.onChange },
 				props.options.map((option) => h("option", { key: option.value, value: option.value }, option.label)));
@@ -150,21 +182,38 @@ window.__ModuleLoader__.load({
 		function targetName(run) {
 			return run.scope === "cross" ? "跨项目" : projectName(run.cwd);
 		}
+		/** Expanded run: what it said, which notes it touched, what it left open, and where the pre-change copies are. */
+		function RunDetail(props) {
+			const run = props.run;
+			const paths = run.changes?.paths ?? {};
+			const touched = [["新增", paths.created], ["修改", paths.modified], ["删除", paths.deleted]].filter(([, list]) => list && list.length > 0);
+			const backup = run.dreamSessionId && props.root && touched.length > 0 ? joinPath(joinPath(joinPath(props.root, ".state"), "history"), run.dreamSessionId) : null;
+			return h("div", { className: "dsh-mem-detail" },
+				run.summary ? h("div", null, run.summary) : null,
+				!run.ok && run.error ? h("div", null, `错误：${run.error}`) : null,
+				touched.map(([label, list]) => h("div", { key: label }, `${label}：`, h("code", null, list.join("、")))),
+				(run.ok ? run.issues ?? [] : []).map((issue, index) => h("div", { key: "i" + index }, `问题：${issue}`)),
+				backup ? h("div", null, "改动前的原文件：", h("code", null, backup)) : null,
+				!run.summary && !run.error && touched.length === 0 && !(run.issues ?? []).length ? h("div", null, "这次运行没有改动笔记。") : null);
+		}
 		function LogRow(props) {
 			const run = props.run;
+			const [open, setOpen] = React.useState(false);
 			const issues = run.ok ? run.issues ?? [] : [];
 			const changes = `新增 ${run.changes?.created ?? 0} / 修改 ${run.changes?.modified ?? 0} / 删除 ${run.changes?.deleted ?? 0}`;
-			return h("div", { className: "dsh-mem-log" },
+			return h("div", { className: "dsh-mem-logitem" }, h("div", { className: "dsh-mem-log" },
 				h("span", { className: "dsh-mem-dot " + (!run.ok ? "fail" : issues.length > 0 ? "warn" : "ok") }),
 				h("span", { className: "dsh-mem-time" }, formatTime(run.at)),
 				h("span", { className: "dsh-mem-project", title: run.cwd ?? "" }, targetName(run)),
 				h("span", { className: "dsh-mem-count" }, run.scope === "cross" ? "全部分区" : `会话 ${run.sessionIds.length} 个`),
 				!run.ok
-					? h("span", { className: "dsh-mem-result fail", title: run.error }, `失败：${run.error ?? "未知错误"}`)
+					? h("span", { className: "dsh-mem-result fail", title: run.error }, `${run.skipped ? "已跳过" : "失败"}：${run.error ?? "未知错误"}`)
 					: issues.length > 0
 						? h("span", { className: "dsh-mem-result warn", title: issues.join("\n") }, `${changes} · 有 ${issues.length} 个问题：${issues[0]}`)
 						: h("span", { className: "dsh-mem-result" }, changes),
-				run.ok ? null : h("button", { type: "button", className: "dsh-mem-btn small", disabled: props.busy, onClick: props.onRetry }, "重试"));
+				h("button", { type: "button", className: "dsh-mem-btn small", "aria-expanded": open ? "true" : "false", onClick: () => setOpen(!open) }, open ? "收起" : "详情"),
+				run.ok || run.skipped ? null : h("button", { type: "button", className: "dsh-mem-btn small", disabled: props.busy || !props.enabled, onClick: props.onRetry }, "重试")),
+				open ? h(RunDetail, { run, root: props.root }) : null);
 		}
 		function PathRow(props) {
 			const copy = () => { try { navigator.clipboard.writeText(props.path); } catch { /* clipboard unavailable */ } };
@@ -187,9 +236,9 @@ window.__ModuleLoader__.load({
 				h("div", { className: "dsh-mem-status" },
 					h("div", { className: "dsh-mem-status-main" },
 						pill,
-						h("span", { className: "dsh-mem-meta" }, running ? `正在整理：${runningNames}` : `待处理：${status.pendingCount ?? 0} 个会话`)),
-					h("button", { type: "button", className: "dsh-mem-btn primary", disabled: running, onClick: props.onDream }, "立即 dream")),
-				paused ? h("div", { className: "dsh-mem-banner" }, `自动 dreaming 已暂停（${formatTime(status.paused.since)}）：${status.paused.reason}。修好模型后点「立即 dream」补跑，成功后自动恢复。`) : null);
+						h("span", { className: "dsh-mem-meta" }, running ? `正在整理：${runningNames}` : status.notice ? status.notice.text : status.retryAt ? `暂时失败，将于 ${formatTime(status.retryAt)} 自动重试（待处理 ${status.pendingCount ?? 0} 个）` : `待处理：${status.pendingCount ?? 0} 个会话`)),
+					h("button", { type: "button", className: "dsh-mem-btn primary", disabled: running || !props.enabled, title: props.enabled ? undefined : "记忆已关闭", onClick: props.onDream }, "立即 dream")),
+				paused ? h("div", { className: "dsh-mem-banner" }, `自动 dreaming 已暂停（${formatTime(status.paused.since)}）：${status.paused.reason}。${pausedHint(status.paused)}`) : null);
 		}
 
 		/**
@@ -220,14 +269,6 @@ window.__ModuleLoader__.load({
 			const log = [...(status.log ?? [])].reverse();
 
 			const requestDream = () => host.set("dreamRequest", String(Date.now()));
-			const setIdle = (event) => {
-				const minutes = Number(event.target.value);
-				if (Number.isInteger(minutes) && minutes >= 1) host.set("idleMinutes", minutes);
-			};
-			const setConcurrency = (event) => {
-				const count = Number(event.target.value);
-				if (Number.isInteger(count) && count >= 1) host.set("concurrency", count);
-			};
 			/* A model change resets the effort: levels differ between models. */
 			const chooseModel = (event) => {
 				const [nextProvider, nextModel] = event.target.value === "" ? ["", ""] : JSON.parse(event.target.value);
@@ -257,15 +298,22 @@ window.__ModuleLoader__.load({
 							title: "空闲阈值",
 							desc: "会话最后一轮结束后空闲这么久，或会话被关闭，视为会话结束。",
 							control: h("span", { className: "dsh-mem-number" },
-								h("input", { type: "number", min: 1, className: "dsh-mem-field", "aria-label": "空闲阈值（分钟）", defaultValue: value.idleMinutes ?? 10, onChange: setIdle }),
+								h(NumberField, { label: "空闲阈值（分钟）", min: 1, max: 1440, value: value.idleMinutes ?? 10, onCommit: (n) => host.set("idleMinutes", n) }),
 								"分钟")
 						}),
 						h(Row, {
 							title: "并发数",
 							desc: "最多同时整理几个项目；同一项目始终一次只跑一个。越大越快，同一时刻消耗的 token 也越多。",
 							control: h("span", { className: "dsh-mem-number" },
-								h("input", { type: "number", min: 1, className: "dsh-mem-field", "aria-label": "并发数", defaultValue: value.concurrency ?? 4, onChange: setConcurrency }),
+								h(NumberField, { label: "并发数", min: 1, max: 16, value: value.concurrency ?? 4, onCommit: (n) => host.set("concurrency", n) }),
 								"个")
+						}),
+						h(Row, {
+							title: "索引大小上限",
+							desc: "每个分区的 INDEX.md 允许的最大字节数，也是每次会话开头注入的上限；越大越占上下文。",
+							control: h("span", { className: "dsh-mem-number" },
+								h(NumberField, { label: "索引大小上限（字节）", min: 512, max: 65536, value: value.indexMaxBytes ?? 4096, onCommit: (n) => host.set("indexMaxBytes", n) }),
+								"字节")
 						}),
 						h(Row, {
 							title: "整理模型",
@@ -280,14 +328,14 @@ window.__ModuleLoader__.load({
 
 				h("div", { className: "dsh-mem-section" },
 					h("h3", { className: "dsh-mem-h2" }, "状态"),
-					h(StatusCard, { status, onDream: requestDream })),
+					h(StatusCard, { status, enabled, onDream: requestDream })),
 
 				h("div", { className: "dsh-mem-section" },
 					h("h3", { className: "dsh-mem-h2" }, "最近运行"),
 					h("div", { className: "dsh-mem-card" },
 						log.length === 0
 							? h("div", { className: "dsh-mem-empty" }, "还没有运行记录。会话结束后会在这里看到每次整理的结果。")
-							: log.map((run, index) => h(LogRow, { key: `${run.at}-${index}`, run, busy, onRetry: requestDream })))),
+							: log.map((run, index) => h(LogRow, { key: `${run.at}-${index}`, run, busy, enabled, root: status.root, onRetry: requestDream })))),
 
 				status.root ? h("div", { className: "dsh-mem-section" },
 					h("h3", { className: "dsh-mem-h2" }, "记忆文件"),

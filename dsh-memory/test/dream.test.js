@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, readFile, readdir, mkdir, utimes, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MemoryStore } from "../lib/store.js";
-import { runDream, transcriptTools, renderTranscript } from "../lib/dream.js";
+import { MemoryStore, HISTORY_KEEP } from "../lib/store.js";
+import { runDream, transcriptTools, renderTranscript, projectState } from "../lib/dream.js";
 
 const CWD = "C:\\Programs\\demo";
 
@@ -109,7 +109,7 @@ test("creates hidden root agent with restricted tools", async (t) => {
 	assert.equal(fake.record.options.parentAgent, undefined);
 	assert.deepEqual(fake.record.options.agentOptions, { provider: "p", model: "m" });
 	assert.deepEqual(fake.record.restricted, { allow: [] });
-	assert.deepEqual(fake.record.registered.sort(), ["dream_report", "memory_delete", "memory_list", "memory_read", "memory_write", "transcript_read", "transcript_search"]);
+	assert.deepEqual(fake.record.registered.sort(), ["dream_report", "memory_delete", "memory_list", "memory_move", "memory_read", "memory_search", "memory_write", "transcript_read", "transcript_search"]);
 	assert.equal(fake.record.followups[0].role, "user");
 	assert.match(fake.record.followups[0].content[0].text, /s1/);
 	assert.equal(result.dreamSessionId, fake.record.options.sessionId);
@@ -168,7 +168,7 @@ test("a cross-project run sees every listed project, reads any project's transcr
 	const projects = [{ cwd: CWD, notes: 3 }, { cwd: "C:\\Programs\\n2sql", notes: 0 }];
 	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { projects, store: await storeFor(t), indexMaxBytes: 4096 });
 	assert.equal(result.ok, true);
-	assert.deepEqual(fake.record.registered.sort(), ["dream_report", "memory_delete", "memory_list", "memory_read", "memory_write", "transcript_read"]);
+	assert.deepEqual(fake.record.registered.sort(), ["dream_report", "memory_delete", "memory_list", "memory_move", "memory_read", "memory_search", "memory_write", "transcript_read"]);
 	const prompt = fake.record.followups[0].content[0].text;
 	assert.match(prompt, /^Memory consolidation · all projects/);
 	assert.match(prompt, /n2sql · 0 notes/);
@@ -222,4 +222,268 @@ test("tells the agent when the project directory no longer exists", async (t) =>
 	}
 	assert.match(prompts.gone, /no longer exists/);
 	assert.doesNotMatch(prompts.present, /no longer exists/);
+});
+
+const assistantWithCalls = (seq, count) => ({ seq, type: "assistant/message", data: { message: { role: "assistant", content: Array.from({ length: count }, (_, i) => ({ type: "tool-call", name: "pwsh", arguments: JSON.stringify({ command: "x".repeat(150) + i }) })) } } });
+
+test("transcript_read always advances: huge messages are clipped and one event's lines are never split across pages", async () => {
+	const events = [
+		userMsg(1, "pasted log ".repeat(5000)),
+		assistantMsg(2, "y".repeat(50_000)),
+		assistantWithCalls(3, 120),
+		userMsg(4, "last")
+	];
+	const sessions = { s1: { header: { id: "s1", cwd: CWD }, events } };
+	const progress = new Map();
+	const read = transcriptTools({ sessionQuery: fakeSessionQuery(sessions) }, { cwd: CWD, sessionIds: ["s1"], progress })[0];
+	let from;
+	const pages = [];
+	for (let page = 0; page < 10; page++) {
+		const { text } = await read.execute({ sessionId: "s1", ...(from === undefined ? {} : { fromSeq: from }) }, {});
+		pages.push(text);
+		const next = text.match(/\[more: call transcript_read with fromSeq=(\d+)\]/);
+		if (next === null) break;
+		assert.ok(from === undefined || Number(next[1]) > from, "fromSeq moves forward");
+		from = Number(next[1]);
+	}
+	assert.match(pages.at(-1), /\[seq 4\] USER: last/, "the last event is reached");
+	assert.ok(pages.length > 1 && pages.length < 10);
+	for (const page of pages) assert.ok(!page.split("\n").some((line) => line.length > 2_100), "no line is longer than the cap");
+	assert.equal(pages.join("\n").match(/\[seq 3\] TOOL CALL/g).length, 120, "no line of the 120-call event is lost");
+	assert.deepEqual(progress.get("s1"), { seq: 4, done: true });
+});
+
+test("transcript_read progress records how far the agent got when it stops early", async () => {
+	const events = [userMsg(1, "a".repeat(1900)), ...Array.from({ length: 30 }, (_, i) => assistantMsg(2 + i, "b".repeat(1900)))];
+	const sessions = { s1: { header: { id: "s1", cwd: CWD }, events } };
+	const progress = new Map();
+	const read = transcriptTools({ sessionQuery: fakeSessionQuery(sessions) }, { cwd: CWD, sessionIds: ["s1"], progress })[0];
+	const { text } = await read.execute({ sessionId: "s1" }, {});
+	const next = Number(text.match(/fromSeq=(\d+)/)[1]);
+	assert.deepEqual(progress.get("s1"), { seq: next - 1, done: false });
+	await read.execute({ sessionId: "s1", fromSeq: next }, {});
+	assert.ok(progress.get("s1").seq >= next, "reading on from where it stopped moves progress forward");
+	for (let guard = 0; guard < 10 && !progress.get("s1").done; guard++) await read.execute({ sessionId: "s1", fromSeq: progress.get("s1").seq + 1 }, {});
+	assert.deepEqual(progress.get("s1"), { seq: 31, done: true });
+	await read.execute({ sessionId: "s1" }, {});
+	assert.deepEqual(progress.get("s1"), { seq: 31, done: true }, "progress never moves backwards");
+});
+
+test("skipping ahead does not mark the skipped part as read", async () => {
+	const events = Array.from({ length: 30 }, (_, i) => assistantMsg(1 + i, "b".repeat(1900)));
+	const sessions = { s1: { header: { id: "s1", cwd: CWD }, events } };
+	const progress = new Map();
+	const read = transcriptTools({ sessionQuery: fakeSessionQuery(sessions) }, { cwd: CWD, sessionIds: ["s1"], progress, fromSeqs: { s1: 5 } })[0];
+	await read.execute({ sessionId: "s1", fromSeq: 28 }, {});
+	assert.deepEqual(progress.get("s1"), undefined, "seqs 6-27 were never shown");
+	await read.execute({ sessionId: "s1", fromSeq: 6 }, {});
+	assert.equal(progress.get("s1").done, false);
+	assert.ok(progress.get("s1").seq >= 6);
+});
+
+test("transcript_read stops after the reading budget so steps stay free for writing", async () => {
+	const sessions = { s1: { header: { id: "s1", cwd: CWD }, events: [userMsg(1, "hello")] } };
+	const read = transcriptTools({ sessionQuery: fakeSessionQuery(sessions) }, { cwd: CWD, sessionIds: ["s1"], readPages: 2 })[0];
+	assert.match((await read.execute({ sessionId: "s1" }, {})).text, /hello/);
+	assert.match((await read.execute({ sessionId: "s1" }, {})).text, /hello/);
+	assert.match((await read.execute({ sessionId: "s1" }, {})).text, /Reading budget used up \(2 pages per run\)/);
+});
+
+test("a run cut off at the budget reports which sessions were not read to the end, and how far it got", async (t) => {
+	let listener;
+	const sessions = { s1: { header: { id: "s1", cwd: CWD }, events: [userMsg(1, "hello"), assistantMsg(2, "done")] } };
+	const fake = fakeAgents({
+		turnEnd: { kind: "aborted" },
+		onIdle: async (record) => {
+			await record.tools.transcript_read.execute({ sessionId: "s1" }, {});
+			await record.tools.memory_write.execute({ scope: "user", path: "a.md", content: "learned", basis: "user-stated" }, {});
+			for (let i = 0; i < 45; i++) listener(record.session, { type: "assistant/message" });
+		}
+	});
+	const ctx = { agents: fake.agents, sessionQuery: fakeSessionQuery(sessions), on: (name, fn) => { if (name === "session/event") listener = fn; return () => { listener = undefined; }; } };
+	const result = await runDream(ctx, { cwd: CWD, sessionIds: ["s1", "s2"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.unfinished, { s2: 0 }, "s1 was read to the end and written up; s2 was never opened");
+	assert.match(result.issues[0], /1 session\(s\) not read to the end/);
+});
+
+test("a run that filed its report before the cut counts every session as covered", async (t) => {
+	let listener;
+	const fake = fakeAgents({
+		turnEnd: { kind: "aborted" },
+		onIdle: async (record) => {
+			await record.tools.dream_report.execute({ summary: "done early" }, {});
+			for (let i = 0; i < 45; i++) listener(record.session, { type: "assistant/message" });
+		}
+	});
+	const ctx = { agents: fake.agents, sessionQuery: fakeSessionQuery({}), on: (name, fn) => { if (name === "session/event") listener = fn; return () => { listener = undefined; }; } };
+	const result = await runDream(ctx, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.unfinished, undefined);
+});
+
+test("a completed turn without a report is not a partial run", async (t) => {
+	const fake = fakeAgents();
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.unfinished, undefined);
+});
+
+test("the prompt names where each session's unreviewed events start", async (t) => {
+	const fake = fakeAgents();
+	await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1", "s2"], fromSeqs: { s1: 40, s2: 0 }, store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.match(fake.record.followups[0].content[0].text, /s1 \(from seq 41\), s2/);
+});
+
+test("projectState tells a deleted project from a directory that cannot be reached", async (t) => {
+	const existing = await mkdtemp(join(tmpdir(), "dsh-memory-project-"));
+	t.after(() => rm(existing, { recursive: true, force: true }));
+	assert.equal(await projectState(existing), "present");
+	assert.equal(await projectState(join(existing, "deleted")), "gone");
+	assert.equal(await projectState(join(existing, "a", "b", "deleted")), "gone", "a nearer ancestor that exists is enough");
+	if (process.platform === "win32") {
+		let free;
+		for (const letter of "ZYXWVUTSRQPONMLKJIHGFED") if (!(await stat(letter + ":\\").then(() => true, () => false))) { free = letter; break; }
+		if (free !== undefined) assert.equal(await projectState(free + ":\\proj"), "unreachable");
+	}
+});
+
+test("a project directory that cannot be reached skips the run before any agent is created", async (t) => {
+	if (process.platform !== "win32") return t.skip("needs an unmounted drive letter");
+	let free;
+	for (const letter of "ZYXWVUTSRQPONMLKJIHGFED") if (!(await stat(letter + ":\\").then(() => true, () => false))) { free = letter; break; }
+	if (free === undefined) return t.skip("no free drive letter");
+	const fake = fakeAgents();
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: free + ":\\proj", sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.ok, false);
+	assert.equal(result.skipped, true);
+	assert.equal(fake.record.options, undefined, "no hidden session was created");
+});
+
+test("a deleted project's partition is read-only for the dreaming agent", async (t) => {
+	const existing = await mkdtemp(join(tmpdir(), "dsh-memory-project-"));
+	t.after(() => rm(existing, { recursive: true, force: true }));
+	const fake = fakeAgents({
+		onIdle: async (record) => {
+			await assert.rejects(record.tools.memory_write.execute({ scope: "project", path: "n.md", content: "x" }, {}), /no longer exists/);
+			await record.tools.memory_write.execute({ scope: "user", path: "pref.md", content: "x", basis: "user-stated" }, {});
+		}
+	});
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: join(existing, "deleted"), sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.changes.paths.created, ["user/pref.md"]);
+});
+
+test("notes a run changes are copied aside first, under the run's own session id", async (t) => {
+	const store = await storeFor(t);
+	const { version } = await store.write("user", undefined, "pref.md", "original", null);
+	const fake = fakeAgents({
+		onIdle: async (record) => {
+			await record.tools.memory_write.execute({ scope: "user", path: "pref.md", content: "rewritten", version }, {});
+		}
+	});
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store, indexMaxBytes: 4096 }).catch((error) => { throw error; });
+	assert.equal(result.ok, true);
+	assert.deepEqual(result.changes.paths.modified, ["user/pref.md"]);
+	assert.equal(await readFile(join(store.root, ".state", "history", result.dreamSessionId, "user", "pref.md"), "utf8"), "original");
+	assert.equal((await store.read("user", undefined, "pref.md")).content, "rewritten");
+});
+
+test("only history of the newest runs is kept", async (t) => {
+	const store = await storeFor(t);
+	for (let i = 0; i < HISTORY_KEEP + 3; i++) {
+		const dir = join(store.root, ".state", "history", `run-${i}`);
+		await mkdir(dir, { recursive: true });
+		await utimes(dir, 1000 + i, 1000 + i);
+	}
+	const fake = fakeAgents();
+	await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store, indexMaxBytes: 4096 });
+	assert.equal((await readdir(join(store.root, ".state", "history"))).length, HISTORY_KEEP);
+});
+
+test("a resolved version conflict and the user-level gate are not reported as problems; a real tool error still is", async (t) => {
+	const fake = fakeAgents({
+		extraEvents: [
+			toolResult(3, "Memory conflict: the note was changed by another session", true),
+			toolResult(4, 'A new user-level note needs basis "user-stated": only preferences', true),
+			toolResult(5, "No note x.md in the project partition.", true)
+		]
+	});
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.deepEqual(result.issues, ["tool error: No note x.md in the project partition.", "ended without dream_report"]);
+});
+
+test("the prompt carries the checks computed from the notes on disk", async (t) => {
+	const store = await storeFor(t);
+	await store.write("user", undefined, "INDEX.md", "- [gone](gone.md) missing", null);
+	const fake = fakeAgents();
+	await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store, indexMaxBytes: 4096 });
+	assert.match(fake.record.followups[0].content[0].text, /user: INDEX\.md links to gone\.md, which does not exist/);
+});
+
+test("reading alone earns no credit: a run cut off without changing any note leaves every session where it started", async (t) => {
+	let listener;
+	const sessions = { s1: { header: { id: "s1", cwd: CWD }, events: [userMsg(1, "hello"), assistantMsg(2, "done")] } };
+	const fake = fakeAgents({
+		turnEnd: { kind: "aborted" },
+		onIdle: async (record) => {
+			await record.tools.transcript_read.execute({ sessionId: "s1" }, {});
+			for (let i = 0; i < 45; i++) listener(record.session, { type: "assistant/message" });
+		}
+	});
+	const ctx = { agents: fake.agents, sessionQuery: fakeSessionQuery(sessions), on: (name, fn) => { if (name === "session/event") listener = fn; return () => { listener = undefined; }; } };
+	const result = await runDream(ctx, { cwd: CWD, sessionIds: ["s1"], fromSeqs: { s1: 7 }, store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.deepEqual(result.unfinished, { s1: 7 });
+});
+
+test("credit stops at the agent's last note change, not at what it read afterwards", async (t) => {
+	let listener;
+	const events = [userMsg(1, "a".repeat(1900)), ...Array.from({ length: 30 }, (_, i) => assistantMsg(2 + i, "b".repeat(1900)))];
+	const sessions = { s1: { header: { id: "s1", cwd: CWD }, events } };
+	const fake = fakeAgents({
+		turnEnd: { kind: "aborted" },
+		onIdle: async (record) => {
+			const first = await record.tools.transcript_read.execute({ sessionId: "s1" }, {});
+			await record.tools.memory_write.execute({ scope: "user", path: "a.md", content: "learned", basis: "user-stated" }, {});
+			await record.tools.transcript_read.execute({ sessionId: "s1", fromSeq: Number(first.text.match(/fromSeq=(\d+)/)[1]) }, {});
+			for (let i = 0; i < 45; i++) listener(record.session, { type: "assistant/message" });
+		}
+	});
+	const ctx = { agents: fake.agents, sessionQuery: fakeSessionQuery(sessions), on: (name, fn) => { if (name === "session/event") listener = fn; return () => { listener = undefined; }; } };
+	const result = await runDream(ctx, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	const firstPageEnd = Number((await transcriptTools({ sessionQuery: fakeSessionQuery(sessions) }, { cwd: CWD, sessionIds: ["s1"] })[0].execute({ sessionId: "s1" }, {})).text.match(/fromSeq=(\d+)/)[1]) - 1;
+	assert.deepEqual(result.unfinished, { s1: firstPageEnd });
+});
+
+test("a run cancelled while the checks run never creates an agent", async (t) => {
+	const fake = fakeAgents();
+	const controller = new AbortController();
+	controller.abort(new Error("memory was turned off"));
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096, signal: controller.signal });
+	assert.equal(result.ok, false);
+	assert.equal(fake.record.options, undefined);
+});
+
+test("a run cancelled while the agent is being created stops it before the prompt is sent", async (t) => {
+	const controller = new AbortController();
+	const fake = fakeAgents();
+	const create = fake.agents.create;
+	fake.agents.create = async (options) => {
+		const handle = await create(options);
+		controller.abort(new Error("plugin stopping"));
+		return handle;
+	};
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096, signal: controller.signal });
+	assert.equal(result.ok, false);
+	assert.deepEqual(fake.record.followups, [], "no prompt was sent");
+	assert.equal(fake.record.disposed, true);
+});
+
+test("the dreaming agent itself is a subagent session but may still write notes", async (t) => {
+	const fake = fakeAgents({
+		onIdle: async (record) => {
+			await record.tools.memory_write.execute({ scope: "user", path: "a.md", content: "x", basis: "user-stated" }, { agent: { session: { header: { id: "d", origin: "subagent" } } } });
+		}
+	});
+	const result = await runDream({ agents: fake.agents, sessionQuery: fakeSessionQuery({}) }, { cwd: CWD, sessionIds: ["s1"], store: await storeFor(t), indexMaxBytes: 4096 });
+	assert.equal(result.ok, true, result.error);
+	assert.deepEqual(result.changes.paths.created, ["user/a.md"]);
 });

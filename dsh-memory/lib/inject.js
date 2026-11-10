@@ -6,7 +6,8 @@
  * disposed. Freezing the snapshot keeps the prompt prefix (and the KV cache)
  * stable for the whole session; changes appear in the next session.
  */
-import { SESSION_GUIDANCE } from "./prompt.js";
+import { SESSION_GUIDANCE, SUBAGENT_GUIDANCE } from "./prompt.js";
+import { isSubagent } from "./trigger.js";
 
 /** Section name and position (before the deployment persona suffix at 10200). */
 const SECTION_NAME = "memory:index";
@@ -76,7 +77,7 @@ export function installIndexInjection(ctx, store, config) {
 			let text = snapshots.get(header.id);
 			if (text === undefined) {
 				const maxBytes = config.indexMaxBytes.get();
-				text = `${SESSION_GUIDANCE}\n\n${renderIndexSection(store.readIndexSync("project", header.cwd), store.readIndexSync("user"), maxBytes)}`;
+				text = `${isSubagent(header) ? SUBAGENT_GUIDANCE : SESSION_GUIDANCE}\n\n${renderIndexSection(store.readIndexSync("project", header.cwd), store.readIndexSync("user"), maxBytes)}`;
 				snapshots.set(header.id, text);
 			}
 			return text;

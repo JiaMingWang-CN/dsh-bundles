@@ -10,7 +10,7 @@
  * client edits the user-facing fields and writes `dreamRequest`; only the
  * host writes `status`, through `ctx.settings.update()`.
  *
- * Design: docs/specs/2026-11-08-agent-memory-design.md
+ * Behavior is described in README.md.
  */
 import z from "@deepseek-ai/schemastery";
 import { join } from "node:path";
@@ -70,6 +70,9 @@ async function apply(ctx, config) {
 
 	const state = new DreamState(root);
 	await state.load();
+	if (state.recovered) ctx.logger.warn("memory: state.json was unreadable and has been set aside as state.json.corrupt-*; dreaming starts from an empty queue");
+	/* Leftovers of crashed writes; best effort, off the startup path. */
+	store.sweep().catch(() => {});
 
 	/* Settings channel: the host publishes `status` (retrying writes made before the plugin is active). */
 	const status = createStatusPublisher({ name, root, warn: (message) => ctx.logger.warn(message) });
@@ -92,6 +95,7 @@ async function apply(ctx, config) {
 		runDream: (job) => runDream(ctx, { ...job, store }),
 		resolveSelection: () => resolveSelection(config, ctx.get("agentDefaultModel")),
 		listProjects,
+		countUserNotes: async () => (await store.list("user")).filter((entry) => entry.path !== "INDEX.md").length,
 		afterRun: () => pruneDreamSessions(join(resolveDshHome(), "sessions"), { cache: pruneCache })
 	});
 	ctx.effect(() => () => runner.stop());
@@ -107,20 +111,35 @@ async function apply(ctx, config) {
 		status.attach(child.settings);
 		child.effect(() => () => status.detach());
 	});
-	/* A changed `dreamRequest` nonce from the settings page asks for a manual run over every project, then a cross-project run. */
+	/* Every settings change: turning memory off cancels runs in flight, and turning on auto dreaming, memory or a higher concurrency starts the waiting queue.
+	   A changed `dreamRequest` nonce from the settings page asks for a manual run over every project (after the same catch-up scan as /dream), then a cross-project run. */
 	let lastRequest = config.dreamRequest.get();
+	let wasEnabled = config.enabled.get();
 	ctx.on("loader/volatile-update", () => {
+		const enabled = config.enabled.get();
+		if (wasEnabled && !enabled) runner.cancelAll("memory was turned off");
+		wasEnabled = enabled;
+		runner.pump();
 		const request = config.dreamRequest.get();
 		if (request === lastRequest) return;
 		lastRequest = request;
-		if (request !== "" && config.enabled.get()) runner.runManual({ cross: true }).catch((error) => ctx.logger.warn("memory: manual dreaming failed: %s", error?.message));
+		if (request !== "" && enabled) {
+			reconcile(ctx.sessionQuery, state)
+				.catch((error) => ctx.logger.warn("memory: catch-up scan failed: %s", error?.message))
+				.then(() => runner.runManual({ cross: true }))
+				.catch((error) => ctx.logger.warn("memory: manual dreaming failed: %s", error?.message));
+		}
 	});
 	ctx.inject(["commands"], (child) => {
 		installDreamCommand(child, { config, runner, reconcile: (scope) => reconcile(ctx.sessionQuery, state, scope) });
 	});
 	const timer = setTimeout(() => {
 		if (!config.enabled.get()) return;
-		reconcile(ctx.sessionQuery, state).then(() => runner.emit(), (error) => ctx.logger.warn("memory: startup scan failed: %s", error?.message));
+		/* Sessions that ended while the app was closed, plus whatever the last run left queued, are consolidated now (when auto dreaming is on). */
+		reconcile(ctx.sessionQuery, state).then(() => {
+			runner.emit();
+			runner.pump();
+		}, (error) => ctx.logger.warn("memory: startup scan failed: %s", error?.message));
 	}, RECONCILE_DELAY_MS);
 	ctx.effect(() => () => clearTimeout(timer));
 }

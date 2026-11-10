@@ -55,3 +55,11 @@ test("formatReport marks runs with issues, lists them, and names the cross-proje
 	] });
 	assert.equal(text, "⚠ demo · 会话 1 个 · 新增 0 / 修改 1 / 删除 0 · 有 1 个问题\n  - tool error: session not found\n✔ 跨项目 · 新增 1 / 修改 0 / 删除 2");
 });
+
+test("the paused notice is only shown when something actually paused", async () => {
+	const { formatReport } = await import("../lib/command.js");
+	const failed = { ok: false, runs: [{ ok: false, trigger: "manual", cwd: "C:\\a", sessionIds: ["s"], error: "401" }] };
+	assert.match(formatReport(failed), /自动 dreaming 已暂停/);
+	const skipped = { ok: false, runs: [{ ok: false, skipped: true, trigger: "manual", cwd: "C:\\a", sessionIds: ["s"], error: "skipped after 3 attempts: blocked" }] };
+	assert.doesNotMatch(formatReport(skipped), /已暂停/);
+});

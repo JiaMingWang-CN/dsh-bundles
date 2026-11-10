@@ -78,3 +78,25 @@ test("section is empty without an agent, without cwd, or when disabled", async (
 	enabled = false;
 	assert.equal(ctx.section.text(agentIn("s2", CWD)), "");
 });
+
+test("a subagent session gets the short read-only guidance and both indexes", async (t) => {
+	const root = await mkdtemp(join(tmpdir(), "dsh-memory-inject-sub-"));
+	t.after(() => rm(root, { recursive: true, force: true }));
+	const store = new MemoryStore(root);
+	await store.write("user", undefined, "INDEX.md", "- [u](u.md)", null);
+	let section;
+	installIndexInjection({ systemPrompt: { section: (definition) => { section = definition; } }, on: () => {} }, store, { enabled: { get: () => true }, indexMaxBytes: { get: () => 4096 } });
+	const render = (header) => section.text({ agent: { session: { header } } });
+	const sub = render({ id: "c1", cwd: CWD, origin: "subagent" });
+	const child = render({ id: "c2", cwd: CWD, parentSession: "p" });
+	const top = render({ id: "t1", cwd: CWD });
+	for (const text of [sub, child]) {
+		assert.match(text, /^# Memory \(read-only\)/);
+		assert.match(text, /cannot change memory/);
+		assert.match(text, /\[u\]\(u\.md\)/, "the indexes are still given");
+		assert.doesNotMatch(text, /memory_write/);
+	}
+	assert.match(top, /memory_write/);
+	assert.ok(Buffer.byteLength(sub) < Buffer.byteLength(top));
+	assert.equal(render({ id: "x", origin: "subagent" }), "", "no cwd, no memory (the dreaming agent)");
+});

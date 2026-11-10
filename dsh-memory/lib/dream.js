@@ -23,26 +23,32 @@
  */
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
-import { basename } from "node:path";
+import { basename, dirname } from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createUserMessage } from "@deepseek-ai/dsh-llm";
-import { createChangeTracker } from "./store.js";
+import { createChangeTracker, createBackup, pruneHistory } from "./store.js";
+import { checkPartition, renderHealth } from "./health.js";
 import { memoryTools } from "./tools.js";
 import { sameProject } from "./paths.js";
 import { dreamPrompt, crossDreamPrompt } from "./prompt.js";
 
 /** Model calls one run may make before it is stopped. */
 export const MAX_STEPS = { project: 40, cross: 80 };
+/** Transcript pages one project run may read; the rest of its steps are for writing. */
+export const READ_PAGES = 20;
 /** Marker opening every dreaming prompt; also identifies old runs' sessions on disk. */
 export const DREAM_PROMPT_MARKERS = ["Memory consolidation", 'You are "dreaming"'];
 
 const TOOL_RESULT_CHARS = 400;
 const TOOL_CALL_CHARS = 200;
 const PAGE_CHARS = 12_000;
+/** Longest USER / ASSISTANT line: a pasted log must not flood the dreaming context. */
+const LINE_CHARS = 2_000;
 const SEARCH_HITS = 50;
 const ISSUE_CHARS = 200;
 const ISSUE_LIMIT = 8;
 
+const seqOf = (line) => Number(line.match(/^\[seq (\d+)\]/)?.[1] ?? 0);
 const clip = (text, max) => (text.length > max ? `${text.slice(0, max)}…` : text);
 const oneLine = (text) => text.replace(/\s+/g, " ").trim();
 
@@ -75,10 +81,10 @@ export function renderTranscript(events) {
 		const content = Array.isArray(message.content) ? message.content : [];
 		if (event.type === "user/message") {
 			if (message.source?.kind !== "user") continue;
-			lines.push(`[seq ${event.seq}] USER: ${oneLine(content.map((block) => blockText(block, TOOL_CALL_CHARS)).join(" "))}`);
+			lines.push(`[seq ${event.seq}] USER: ${clip(oneLine(content.map((block) => blockText(block, TOOL_CALL_CHARS)).join(" ")), LINE_CHARS)}`);
 		} else if (event.type === "assistant/message") {
 			const text = oneLine(content.filter((block) => block.type === "text").map((block) => block.text).join(" "));
-			if (text !== "") lines.push(`[seq ${event.seq}] ASSISTANT: ${text}`);
+			if (text !== "") lines.push(`[seq ${event.seq}] ASSISTANT: ${clip(text, LINE_CHARS)}`);
 			for (const block of content) {
 				if (block.type !== "text" && block.type !== "reasoning") lines.push(`[seq ${event.seq}] ${toolCallLine(block)}`);
 			}
@@ -88,6 +94,28 @@ export function renderTranscript(events) {
 		}
 	}
 	return lines.join("\n");
+}
+
+/**
+ * Whether a project directory is there, was deleted, or cannot be judged.
+ * A missing directory counts as deleted only when an ancestor exists below the
+ * filesystem root's own mount (so a drive or share that is not mounted right
+ * now is "unreachable" and its sessions wait instead of being dropped).
+ * @returns {Promise<"present" | "gone" | "unreachable">}
+ */
+export async function projectState(cwd) {
+	try {
+		await stat(cwd);
+		return "present";
+	} catch (error) {
+		if (error.code !== "ENOENT" && error.code !== "ENOTDIR") return "unreachable";
+	}
+	for (let dir = dirname(cwd); ;) {
+		if (await stat(dir).then(() => true, () => false)) return "gone";
+		const parent = dirname(dir);
+		if (parent === dir) return "unreachable";
+		dir = parent;
+	}
 }
 
 const TEXT_OUTPUT = {
@@ -119,9 +147,13 @@ async function resolveSession(sessionQuery, sessionId, allowed) {
  * (`cwd` undefined) reads any project's session to see where a cited
  * session belongs, and has no search.
  * @param ctx - context providing `sessionQuery`.
- * @param {{ cwd?: string, sessionIds: string[] }} job
+ * @param {{ cwd?: string, sessionIds: string[], progress?: Map<string, { seq: number, done: boolean }>,
+ *   fromSeqs?: Record<string, number>, readPages?: number }} job
+ *   `progress` receives, per session, how far the agent has read without skipping anything (from `fromSeqs`, where
+ *   the previous run stopped) and whether the end was reached. `readPages` limits `transcript_read` calls.
  */
-export function transcriptTools(ctx, { cwd, sessionIds }) {
+export function transcriptTools(ctx, { cwd, sessionIds, progress = new Map(), fromSeqs = {}, readPages = Infinity }) {
+	let pagesRead = 0;
 	const cross = cwd === undefined;
 	const allowed = (header) => typeof header.cwd === "string" && (cross || sameProject(header.cwd, cwd));
 	const cache = new Map();
@@ -145,19 +177,29 @@ export function transcriptTools(ctx, { cwd, sessionIds }) {
 		isConcurrencySafe: () => true,
 		async execute(args) {
 			const { id, cwd: project, lines } = await load(args.sessionId);
+			if (++pagesRead > readPages) return { text: `Reading budget used up (${readPages} pages per run). Do not read more: write what you learned from what you read, then call dream_report. Sessions you did not finish are reviewed again by the next run.` };
 			const from = args.fromSeq ?? 0;
 			const out = from === 0 ? [`Session ${id} · project ${project}`] : [];
 			let size = 0;
+			let lastSeq = 0;
+			let more = false;
 			for (const line of lines) {
-				const seq = Number(line.match(/^\[seq (\d+)\]/)?.[1] ?? 0);
+				const seq = seqOf(line);
 				if (seq < from) continue;
-				if (size + line.length > PAGE_CHARS && size > 0) {
+				/* A page ends only between events, never inside one, so the next page's `fromSeq` always advances. */
+				if (size > PAGE_CHARS && seq !== lastSeq) {
 					out.push(`[more: call transcript_read with fromSeq=${seq}]`);
+					more = true;
 					break;
 				}
 				out.push(line);
+				lastSeq = seq;
 				size += line.length + 1;
 			}
+			/* Only a page that continues where the agent already was counts: skipping ahead does not mark the skipped part as read. */
+			const covered = progress.get(id) ?? { seq: fromSeqs[id] ?? 0, done: false };
+			const skipped = lines.some((line) => seqOf(line) > covered.seq && seqOf(line) < from);
+			if (!skipped) progress.set(id, { seq: Math.max(covered.seq, lastSeq), done: covered.done || !more });
 			return { text: out.length === 0 ? "No transcript lines at or after that seq." : out.join("\n") };
 		}
 	});
@@ -207,26 +249,51 @@ export function reportTool(holder) {
 function toolErrors(events) {
 	return events.filter((event) => event.type === "tool/result" && event.data?.message?.isError).map((event) => {
 		const content = Array.isArray(event.data.message.content) ? event.data.message.content : [];
-		return `tool error: ${clip(oneLine(content.map((block) => blockText(block, ISSUE_CHARS)).join(" ")), ISSUE_CHARS)}`;
-	});
+		return clip(oneLine(content.map((block) => blockText(block, ISSUE_CHARS)).join(" ")), ISSUE_CHARS);
+	})
+		/* Expected retries, not problems: a version conflict is redone on the new content, and the user-level gate redirects the note to the project partition. */
+		.filter((text) => !/^Memory conflict:|^A new user-level note needs basis/.test(text))
+		.map((text) => `tool error: ${text}`);
+}
+
+/** Pre-computed checks for the prompt; a failing check only costs the section. */
+async function healthFor(store, partitions, indexMaxBytes) {
+	try {
+		return renderHealth(await Promise.all(partitions.map(async ({ label, scope, cwd }) => ({ label, issues: await checkPartition(store, scope, cwd, indexMaxBytes) }))));
+	} catch {
+		return "";
+	}
 }
 
 /**
  * Run one dreaming pass.
  * @param ctx - context providing `agents`, `sessionQuery`, and optionally `on` (step budget) and `get` (`sessionTitle`).
  * @param {{ cwd?: string, sessionIds?: string[], projects?: Array<{ cwd: string, notes: number }>,
- *   selection?: { provider: string, model: string, reasoningEffort?: string },
+ *   fromSeqs?: Record<string, number>, selection?: { provider: string, model: string, reasoningEffort?: string },
  *   store: import("./store.js").MemoryStore, indexMaxBytes: number, signal?: AbortSignal }} job
+ *   `fromSeqs` maps a session id to the last seq an earlier run reviewed.
  *   `projects` makes it a cross-project run; otherwise it consolidates `cwd`.
- * @returns {Promise<{ ok: true, changes: object, issues: string[], summary?: string, dreamSessionId: string }
- *   | { ok: false, error: string, dreamSessionId?: string }>}
+ * @returns {Promise<{ ok: true, changes: object, issues: string[], summary?: string, dreamSessionId: string, unfinished?: Record<string, number> }
+ *   | { ok: false, error: string, dreamSessionId?: string, skipped?: boolean }>}
+ *   `unfinished` maps each session that was not read to the end (the run hit its budget) to the seq it got through.
+ *   `skipped` means the run did not start: the project directory cannot be reached right now.
  */
-export async function runDream(ctx, { cwd, sessionIds = [], projects, selection, store, indexMaxBytes, signal }) {
+export async function runDream(ctx, { cwd, sessionIds = [], fromSeqs = {}, projects, selection, store, indexMaxBytes, signal }) {
+	if (signal?.aborted) return { ok: false, error: "cancelled before it started" };
 	const cross = projects !== undefined;
 	const maxSteps = cross ? MAX_STEPS.cross : MAX_STEPS.project;
-	const tracker = createChangeTracker();
-	const holder = { report: undefined };
 	const sessionId = `session-${randomUUID()}`;
+	const tracker = createChangeTracker({ backup: createBackup(store.root, sessionId) });
+	const holder = { report: undefined };
+	/** Per session: last seq shown to the agent, and whether its end was reached. */
+	const progress = new Map();
+	/* What counts as reviewed if the run is cut off: the reading progress at the agent's last note change, since reading alone consolidates nothing. */
+	let credited = new Map();
+	const record = tracker.record.bind(tracker);
+	tracker.record = (kind, path) => {
+		record(kind, path);
+		credited = new Map([...progress].map(([id, state]) => [id, { ...state }]));
+	};
 	let handle;
 	let steps = 0;
 	let budgetHit = false;
@@ -235,14 +302,21 @@ export async function runDream(ctx, { cwd, sessionIds = [], projects, selection,
 		let prompt;
 		let tools;
 		if (cross) {
-			prompt = crossDreamPrompt({ projects, indexMaxBytes, maxSteps });
-			tools = [...memoryTools(store, { projects: projects.map((project) => project.cwd), tracker, indexMaxBytes: () => indexMaxBytes }), ...transcriptTools(ctx, { sessionIds: [] })];
+			const health = await healthFor(store, [{ label: "user", scope: "user" }, ...projects.map((project) => ({ label: `project ${project.cwd}`, scope: "project", cwd: project.cwd }))], indexMaxBytes);
+			prompt = crossDreamPrompt({ projects, indexMaxBytes, maxSteps, health });
+			tools = [...memoryTools(store, { projects: projects.map((project) => project.cwd), tracker, indexMaxBytes: () => indexMaxBytes, subagentReadOnly: false }), ...transcriptTools(ctx, { sessionIds: [] })];
 		} else {
-			/* Notes in a deleted project's partition would never be loaded again; the prompt then keeps only what the user stated. */
-			const projectGone = await stat(cwd).then(() => false, (error) => error.code === "ENOENT");
-			prompt = dreamPrompt({ cwd, sessionIds, indexMaxBytes, projectGone, maxSteps });
-			tools = [...memoryTools(store, { cwdOf: () => cwd, tracker, indexMaxBytes: () => indexMaxBytes }), ...transcriptTools(ctx, { cwd, sessionIds })];
+			/* A deleted project's notes would never be loaded again: its partition turns read-only and the prompt keeps only what the user stated.
+			   A directory that cannot be reached right now (unmounted drive) is neither: the run waits. */
+			const state = await projectState(cwd);
+			if (state === "unreachable") return { ok: false, skipped: true, error: `project directory ${cwd} cannot be reached right now` };
+			const projectGone = state === "gone";
+			const health = await healthFor(store, [...(projectGone ? [] : [{ label: "project", scope: "project", cwd }]), { label: "user", scope: "user" }], indexMaxBytes);
+			prompt = dreamPrompt({ cwd, sessionIds, fromSeqs, indexMaxBytes, projectGone, maxSteps, health, readPages: READ_PAGES });
+			tools = [...memoryTools(store, { cwdOf: () => cwd, tracker, indexMaxBytes: () => indexMaxBytes, projectWritable: !projectGone, subagentReadOnly: false }), ...transcriptTools(ctx, { cwd, sessionIds, progress, fromSeqs, readPages: READ_PAGES })];
 		}
+		/* Cancelled (memory turned off, plugin stopping) while the checks ran: do not create the agent at all. */
+		if (signal?.aborted) return { ok: false, error: "cancelled before it started" };
 		handle = await ctx.agents.create({
 			sessionId,
 			meta: { origin: "subagent" },
@@ -253,6 +327,7 @@ export async function runDream(ctx, { cwd, sessionIds = [], projects, selection,
 			}
 		});
 		const agent = handle.agent;
+		if (signal?.aborted) return { ok: false, error: "cancelled before it started", dreamSessionId: sessionId };
 		try {
 			ctx.get?.("sessionTitle")?.rename(agent.session, `记忆整理 · ${cross ? "跨项目" : basename(cwd)}`);
 		} catch {
@@ -278,8 +353,14 @@ export async function runDream(ctx, { cwd, sessionIds = [], projects, selection,
 		const reason = turnEnd?.data?.reason;
 		if (turnEnd === undefined) return { ok: false, error: "dreaming agent did not finish a turn", dreamSessionId: sessionId };
 		if (reason?.kind === "completed" || budgetHit) {
+			/* Cut off at the budget without a report: sessions not read to the end stay queued, from where this run got to. */
+			const unfinished = {};
+			if (budgetHit && holder.report === undefined) {
+				for (const id of sessionIds) if (credited.get(id)?.done !== true) unfinished[id] = credited.get(id)?.seq ?? fromSeqs[id] ?? 0;
+			}
+			const pending = Object.keys(unfinished).length;
 			const issues = [
-				...(budgetHit ? [`step budget of ${maxSteps} reached; unfinished work waits for the next run`] : []),
+				...(budgetHit ? [`step budget of ${maxSteps} reached${pending > 0 ? `; ${pending} session(s) not read to the end will be reviewed again from where this run stopped` : holder.report === undefined ? "" : "; the report was already filed"}`] : []),
 				...toolErrors(events),
 				...(holder.report?.unresolved ?? []).map((item) => clip(item, ISSUE_CHARS)),
 				...(holder.report === undefined && !budgetHit ? ["ended without dream_report"] : [])
@@ -289,6 +370,7 @@ export async function runDream(ctx, { cwd, sessionIds = [], projects, selection,
 				changes: tracker.summary(),
 				issues: issues.length > ISSUE_LIMIT ? [...issues.slice(0, ISSUE_LIMIT), `…and ${issues.length - ISSUE_LIMIT} more`] : issues,
 				...(holder.report ? { summary: clip(holder.report.summary, 600) } : {}),
+				...(pending > 0 ? { unfinished } : {}),
 				dreamSessionId: sessionId
 			};
 		}
@@ -299,5 +381,6 @@ export async function runDream(ctx, { cwd, sessionIds = [], projects, selection,
 	} finally {
 		stopListening?.();
 		await handle?.dispose().catch(() => {});
+		await pruneHistory(store.root).catch(() => {});
 	}
 }

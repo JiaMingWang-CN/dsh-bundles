@@ -1,0 +1,30 @@
+name: dsh-memory
+
+on:
+  push:
+    paths: ["dsh-memory/**", ".github/workflows/dsh-memory.yml"]
+  pull_request:
+    paths: ["dsh-memory/**", ".github/workflows/dsh-memory.yml"]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+    defaults:
+      run:
+        working-directory: dsh-memory
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: dsh-memory/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DreamState } from "../lib/state.js";
@@ -132,4 +132,67 @@ test("concurrent writes do not lose updates", async (t) => {
 	const state = await loaded(root);
 	await Promise.all(Array.from({ length: 20 }, (_v, i) => state.enqueue({ sessionId: `s${i}`, cwd: "C:\\a", endedAt: i, seq: 1 })));
 	assert.equal((await loaded(root)).pending().length, 20);
+});
+
+test("a corrupt state.json is set aside and the plugin starts fresh", async (t) => {
+	const root = await freshRoot(t);
+	await mkdir(join(root, ".state"), { recursive: true });
+	await writeFile(join(root, ".state", "state.json"), "{ not json", "utf8");
+	const state = new DreamState(root, { now: () => 777 });
+	await state.load();
+	assert.equal(state.recovered, true);
+	assert.deepEqual(state.pending(), []);
+	assert.equal(state.installedAt, 777);
+	assert.ok((await readdir(join(root, ".state"))).includes("state.json.corrupt-777"));
+	for (const shape of ["[]", "null", '{"queue": 5}']) {
+		await writeFile(join(root, ".state", "state.json"), shape, "utf8");
+		const again = new DreamState(root);
+		await again.load();
+		assert.equal(again.recovered, true, shape);
+	}
+});
+
+test("failures are counted per session and cleared when the session completes", async (t) => {
+	const state = await loaded(await freshRoot(t));
+	await state.enqueue({ sessionId: "s1", cwd: "C:\\a", endedAt: 1, seq: 10 });
+	assert.deepEqual(await state.noteFailure(["s1", "s2"]), { s1: 1, s2: 1 });
+	assert.deepEqual(await state.noteFailure(["s1"]), { s1: 2 });
+	assert.equal(state.attempts("s1"), 2);
+	await state.complete([{ sessionId: "s1", seq: 4 }]);
+	assert.equal(state.attempts("s1"), 2, "partial progress is not a fresh start");
+	await state.complete([{ sessionId: "s1", seq: 10 }]);
+	assert.equal(state.attempts("s1"), 0);
+	const reloaded = await loaded(state.dir.replace(/[\\/]\.state$/, ""));
+	assert.equal(reloaded.attempts("s2"), 1, "counts survive a restart");
+});
+
+test("pruneSessions forgets finished sessions' bookkeeping but not queued ones", async (t) => {
+	const state = await loaded(await freshRoot(t));
+	await state.complete([{ sessionId: "old", seq: 3 }, { sessionId: "live", seq: 3 }, { sessionId: "queued", seq: 3 }]);
+	await state.noteFailure(["old"]);
+	await state.enqueue({ sessionId: "queued", cwd: "C:\\a", endedAt: 1, seq: 9 });
+	await state.pruneSessions(["live"]);
+	assert.deepEqual([state.watermark("old"), state.watermark("live"), state.watermark("queued")], [0, 3, 3]);
+	assert.equal(state.attempts("old"), 0);
+});
+
+test("the first project run starts the cross-project clock", async (t) => {
+	const state = new DreamState(await freshRoot(t), { now: () => 5000 });
+	await state.load();
+	await state.noteProjectRun("C:\\a");
+	assert.equal(state.crossAt, 5000);
+	assert.deepEqual(state.crossProjects(), ["C:\\a"]);
+	const later = new DreamState(state.dir.replace(/[\\/]\.state$/, ""), { now: () => 9000 });
+	await later.load();
+	await later.noteProjectRun("C:\\b");
+	assert.equal(later.crossAt, 5000, "an existing time is kept");
+});
+
+test("a failed state write leaves no temp file behind", async (t) => {
+	const root = await freshRoot(t);
+	const state = await loaded(root);
+	await rm(state.stateFile, { force: true });
+	await mkdir(state.stateFile);
+	await assert.rejects(state.enqueue({ sessionId: "s", cwd: "C:\\a", endedAt: 1, seq: 1 }));
+	assert.deepEqual((await readdir(state.dir)).filter((name) => name.endsWith(".tmp")), []);
 });

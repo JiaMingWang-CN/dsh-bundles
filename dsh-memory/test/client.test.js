@@ -106,7 +106,7 @@ test("toggles and inputs write volatile config fields", async () => {
 	idle.props.onChange({ target: { value: "0" } });
 	assert.deepEqual(host.writes.at(-1), ["idleMinutes", 15], "invalid values are not written");
 	const [concurrency] = find(tree, (node) => node.props["aria-label"] === "并发数");
-	assert.equal(concurrency.props.defaultValue, 4);
+	assert.equal(concurrency.props.value, "4");
 	concurrency.props.onChange({ target: { value: "2" } });
 	assert.deepEqual(host.writes.at(-1), ["concurrency", 2]);
 	concurrency.props.onChange({ target: { value: "0" } });
@@ -196,4 +196,49 @@ test("log rows flag ok runs with issues and name the cross-project run", async (
 	assert.match(all, /跨项目\|全部分区/);
 	assert.match(all, /正在整理：跨项目/);
 	assert.equal(find(tree, (node) => typeof node.props?.className === "string" && node.props.className.includes("dsh-mem-dot warn")).length, 1);
+});
+
+test("number fields save only whole numbers inside their range, and indexMaxBytes has a field", async () => {
+	const plugin = await load();
+	const host = fakeHost(VALUE);
+	const tree = plugin.SettingsPage({ host });
+	const field = (label) => find(tree, (node) => node.props["aria-label"] === label)[0];
+	field("并发数").props.onChange({ target: { value: "99" } });
+	field("空闲阈值（分钟）").props.onChange({ target: { value: "1.5" } });
+	field("空闲阈值（分钟）").props.onChange({ target: { value: "" } });
+	assert.deepEqual(host.writes, [], "above the maximum, fractional and empty input are not saved");
+	field("索引大小上限（字节）").props.onChange({ target: { value: "100" } });
+	assert.deepEqual(host.writes, [], "below the minimum is not saved");
+	field("索引大小上限（字节）").props.onChange({ target: { value: "8192" } });
+	assert.deepEqual(host.writes.at(-1), ["indexMaxBytes", 8192]);
+	assert.equal(field("索引大小上限（字节）").props.value, "4096", "shows the stored value");
+});
+
+test("the paused banner says what to do for the cause, and the status shows retry and notice", async () => {
+	const plugin = await load();
+	const page = (status) => texts(plugin.SettingsPage({ host: fakeHost({ ...VALUE, status: { ...STATUS, ...status } }) })).join("|");
+	assert.match(page({ paused: { since: 1, reason: "401", kind: "auth" } }), /修好模型或密钥后/);
+	assert.match(page({ paused: { since: 1, reason: "连续失败 3 次：fetch failed", kind: "repeated" } }), /网络或服务暂时不可用/);
+	assert.match(page({ paused: { since: 1, reason: "x" } }), /排查原因后点/);
+	assert.match(page({ paused: null, retryAt: Date.UTC(2026, 10, 8, 3, 0) }), /将于 \d\d-\d\d \d\d:\d\d 自动重试/);
+	assert.match(page({ paused: null, notice: { at: 1, text: "没有需要整理的会话。" } }), /没有需要整理的会话/);
+});
+
+test("dream-now and retry are disabled while memory is off", async () => {
+	const plugin = await load();
+	const tree = plugin.SettingsPage({ host: fakeHost({ ...VALUE, enabled: false }) });
+	const [dreamNow] = find(tree, (node) => node.type === "button" && texts(node).join("") === "立即 dream");
+	const [retry] = find(tree, (node) => node.type === "button" && texts(node).join("") === "重试");
+	assert.equal(dreamNow.props.disabled, true);
+	assert.equal(retry.props.disabled, true);
+});
+
+test("log rows can be expanded and a skipped batch is labelled as skipped", async () => {
+	const plugin = await load();
+	const status = { ...STATUS, log: [{ at: 1, cwd: "C:\p", sessionIds: ["a"], ok: false, trigger: "auto", error: "skipped after 3 attempts: blocked", skipped: true }] };
+	const tree = plugin.SettingsPage({ host: fakeHost({ ...VALUE, status }) });
+	const all = texts(tree).join("|");
+	assert.match(all, /已跳过：skipped after 3 attempts/);
+	assert.equal(find(tree, (node) => node.type === "button" && texts(node).join("") === "详情").length, 1);
+	assert.equal(find(tree, (node) => node.type === "button" && texts(node).join("") === "重试").length, 0, "a skipped batch has nothing to retry");
 });

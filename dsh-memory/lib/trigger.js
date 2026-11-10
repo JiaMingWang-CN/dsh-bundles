@@ -16,7 +16,12 @@
  * @param {{ cwd?: string, origin?: string, parentSession?: string }} header
  */
 export function isEligible(header) {
-	return typeof header?.cwd === "string" && header.cwd.length > 0 && header.origin !== "subagent" && header.parentSession === undefined;
+	return typeof header?.cwd === "string" && header.cwd.length > 0 && !isSubagent(header);
+}
+
+/** A subagent session: started by another agent, or the hidden dreaming agent itself. */
+export function isSubagent(header) {
+	return header?.origin === "subagent" || header?.parentSession !== undefined;
 }
 
 /** @typedef {{ completedTurns: number, toolCalls: number }} Activity */

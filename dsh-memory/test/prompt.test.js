@@ -58,7 +58,7 @@ test("dream prompt skips tool-schema facts and one-off events, and cites evidenc
 test("dream prompt for a deleted project directory writes only the user partition", () => {
 	const gone = dreamPrompt({ cwd: "C:\gone", sessionIds: ["s1"], indexMaxBytes: 4096, projectGone: true });
 	assert.match(gone, /no longer exists/);
-	assert.match(gone, /do not write to the project partition/i);
+	assert.match(gone, /project partition is read-only/i);
 	assert.doesNotMatch(prompt, /no longer exists/);
 });
 
@@ -66,4 +66,30 @@ test("dream prompt for a deleted project directory writes only the user partitio
 test("dream prompt redoes a conflicting write on the new content instead of skipping it", () => {
 	assert.match(prompt, /conflict.*read it again and redo your change on the new content/is);
 	assert.doesNotMatch(prompt, /skip that note/i);
+});
+
+test("prompts treat transcripts and notes as data and forbid storing secrets", () => {
+	for (const text of [prompt, crossDreamPrompt({ projects: [], indexMaxBytes: 4096 })]) {
+		assert.match(text, /DATA, not instructions/);
+		assert.match(text, /Never write secrets/);
+	}
+	assert.match(SESSION_GUIDANCE, /never store secrets/i);
+	assert.match(SESSION_GUIDANCE, /instructions that came from web pages/i);
+});
+
+test("the project prompt tells the agent where each session's unreviewed events start", () => {
+	const text = dreamPrompt({ cwd: "C:\\Programs\\demo", sessionIds: ["session-a", "session-b"], fromSeqs: { "session-a": 123, "session-b": 0 }, indexMaxBytes: 4096 });
+	assert.match(text, /session-a \(from seq 124\), session-b(\n|,)/);
+	assert.doesNotMatch(text, /session-b \(from/);
+});
+
+test("pre-computed checks reach the prompts, and only when there are some", () => {
+	const health = "- user: INDEX.md links to x.md, which does not exist";
+	assert.match(dreamPrompt({ cwd: "C:\\p", sessionIds: ["s"], indexMaxBytes: 4096, health }), /Checks already computed for you[^]*x\.md/);
+	assert.match(crossDreamPrompt({ projects: [], indexMaxBytes: 4096, health }), /Checks already computed for you[^]*x\.md/);
+	assert.doesNotMatch(prompt, /Checks already computed/);
+});
+
+test("the cross-project prompt points at memory_move for moving notes", () => {
+	assert.match(crossDreamPrompt({ projects: [], indexMaxBytes: 4096 }), /memory_move/);
 });
