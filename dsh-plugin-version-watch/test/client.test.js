@@ -190,3 +190,24 @@ test("a failed read replaces the list with an error line", async () => {
 	});
 	assert.match(texts(tree).join("|"), /读取插件列表失败/);
 });
+
+test("a temporarily unreadable plugin keeps its row and shows no enable badge", async () => {
+	const plugin = await load();
+	const t = (key) => plugin.DICT.zh[key] ?? key;
+	const tree = plugin.UpdatesView({
+		t,
+		data: {
+			checkedAt: 1,
+			plugins: [{ name: "dsh-memory", title: null, version: "0.1.0", enabled: null, kind: "git", source: "github:o/r#path:x", check: { status: "unknown", reason: "unavailable" } }],
+		},
+		phase: "ready",
+		error: null,
+		results: {},
+		busy: null,
+		resolveText: (text) => text,
+	});
+	const all = texts(tree).join("|");
+	assert.match(all, /暂时不可读/);
+	assert.doesNotMatch(all, /已停用/);
+	assert.doesNotMatch(all, /已启用/);
+});

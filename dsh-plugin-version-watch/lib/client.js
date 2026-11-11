@@ -91,12 +91,13 @@ window.__ModuleLoader__.load({
 				statusCurrent: "已是最新",
 				statusAvailableGit: "有新提交",
 				statusAvailableRegistry: "有新版本",
-				statusUnknown: "无法确定已安装提交",
+				statusUnknown: "暂时不可读",
 				statusFailed: "检查失败",
 				statusUnsupported: "不支持自动更新",
 				reasonNoCommit: "锁文件未记录提交",
 				reasonSemver: "按版本范围安装",
 				reasonNotUpdatable: "非注册表安装",
+				reasonUnavailable: "插件文件正在更新，请稍后",
 				installedLabel: "当前",
 				latestLabel: "最新",
 				commitLabel: "提交",
@@ -142,12 +143,13 @@ window.__ModuleLoader__.load({
 				statusCurrent: "Up to date",
 				statusAvailableGit: "New commits",
 				statusAvailableRegistry: "New version",
-				statusUnknown: "Installed commit unknown",
+				statusUnknown: "Temporarily unavailable",
 				statusFailed: "Check failed",
 				statusUnsupported: "Not auto-updatable",
 				reasonNoCommit: "the lockfile records no commit",
 				reasonSemver: "installed from a version range",
 				reasonNotUpdatable: "not installed from a registry",
+				reasonUnavailable: "plugin files are being updated, retry shortly",
 				installedLabel: "Current",
 				latestLabel: "Latest",
 				commitLabel: "Commit",
@@ -221,7 +223,11 @@ window.__ModuleLoader__.load({
 			if (check.status === "current") return t("statusCurrent");
 			if (check.status === "available") return plugin?.kind === "registry" ? t("statusAvailableRegistry") : t("statusAvailableGit");
 			if (check.status === "unknown") {
-				const reason = check.reason === "no-installed-commit" ? t("reasonNoCommit") : "";
+				const reason = check.reason === "no-installed-commit"
+					? t("reasonNoCommit")
+					: check.reason === "unavailable"
+						? t("reasonUnavailable")
+						: "";
 				return reason === "" ? t("statusUnknown") : `${t("statusUnknown")} · ${reason}`;
 			}
 			if (check.status === "failed") return check.reason ? `${t("statusFailed")} · ${check.reason}` : t("statusFailed");
@@ -413,7 +419,9 @@ window.__ModuleLoader__.load({
 							{ className: "dsh-vw-rowtitle" },
 							React.createElement("span", { className: "dsh-vw-name" }, pluginTitle(plugin, props.resolveText ?? ((text) => text))),
 							React.createElement("span", { className: "dsh-vw-version" }, plugin.version ?? "—"),
-							React.createElement("span", { className: "dsh-vw-off" }, plugin.enabled ? t("enabled") : t("disabled")),
+							typeof plugin.enabled === "boolean"
+								? React.createElement("span", { className: "dsh-vw-off" }, plugin.enabled ? t("enabled") : t("disabled"))
+								: null,
 							React.createElement("span", { className: `dsh-vw-state ${check.status ?? "unknown"}` }, stateText(plugin, t)),
 						),
 						React.createElement(
@@ -541,7 +549,11 @@ window.__ModuleLoader__.load({
 					}));
 				} finally {
 					setBusy(null);
-					load(true);
+					await load(true);
+					// A reinstall can still be recomposing when its answer arrives;
+					// read once more so the updated row is not left out of the list.
+					await new Promise((resolve) => setTimeout(resolve, 600));
+					await load(true);
 				}
 			}, [load]);
 

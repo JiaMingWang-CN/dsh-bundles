@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -339,8 +339,7 @@ test("a registry plugin without an installable newer version is already current"
 	}
 });
 
-test("statusPayload lists profile plugins and local sources as unsupported", async () => {
-	const dir = await mkdtemp(join(tmpdir(), "vw-profile-"));
+test("statusPayload lists profile plugins and local sources as unsupported", async () => {	const dir = await mkdtemp(join(tmpdir(), "vw-profile-"));
 	await writeFile(join(dir, "package.json"), JSON.stringify({ name: "profile", dependencies: { demo: "file:../demo" } }, null, 2));
 	await writeFile(join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
 	const localBundle = {
@@ -368,6 +367,43 @@ test("statusPayload lists profile plugins and local sources as unsupported", asy
 		assert.equal(payload.plugins[0].enabled, false);
 		assert.equal(payload.plugins[0].check.status, "unsupported");
 		assert.deepEqual(payload.plugins[0].title, { zh: "示例插件", en: "Demo plugin" });
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+test("a plugin stays listed while its bundle metadata is briefly unavailable", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "vw-profile-"));
+	await writeFile(join(dir, "package.json"), JSON.stringify({ name: "profile", dependencies: { demo: "file:../demo" } }, null, 2));
+	await writeFile(join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+	await mkdir(join(dir, "node_modules", "demo"), { recursive: true });
+	await writeFile(
+		join(dir, "node_modules", "demo", "package.json"),
+		JSON.stringify({ name: "demo", version: "1.2.3", dsh: { bundle: { patch: "./patch.yml" } } }, null, 2),
+	);
+	const manager = { async listBundles() { return []; } };
+	const ctx = context(dir, manager, true);
+	try {
+		const payload = await __test.statusPayload(ctx, true);
+		assert.deepEqual(payload.plugins.map((plugin) => plugin.name), ["demo"]);
+		assert.equal(payload.plugins[0].version, "1.2.3");
+		assert.equal(payload.plugins[0].enabled, null);
+		assert.equal(payload.plugins[0].check.status, "unsupported");
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+test("a plain dependency without a bundle patch stays out of the list", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "vw-profile-"));
+	await writeFile(join(dir, "package.json"), JSON.stringify({ name: "profile", dependencies: { helper: "file:../helper" } }, null, 2));
+	await mkdir(join(dir, "node_modules", "helper"), { recursive: true });
+	await writeFile(join(dir, "node_modules", "helper", "package.json"), JSON.stringify({ name: "helper", version: "1.0.0" }, null, 2));
+	const manager = { async listBundles() { return []; } };
+	const ctx = context(dir, manager, true);
+	try {
+		const payload = await __test.statusPayload(ctx, true);
+		assert.deepEqual(payload.plugins, []);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 	}

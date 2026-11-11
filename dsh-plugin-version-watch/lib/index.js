@@ -237,7 +237,7 @@ async function resolveCheck(ctx, { name, info, installedCommit, bundle }) {
 	}
 
 	if (info.kind === "registry") {
-		if (bundle.updatable !== true) {
+		if (bundle !== undefined && bundle.updatable !== true) {
 			return { status: "unsupported", installedCommit: null, remoteCommit: null, remoteVersion: null, latestVersion: null, reason: "not-updatable" };
 		}
 		let answer;
@@ -266,13 +266,35 @@ async function resolveCheck(ctx, { name, info, installedCommit, bundle }) {
 }
 
 /**
+ * Read one installed package's manifest from the profile's `node_modules`.
+ * Used as a fallback while the plugin manager is recomposing, so a plugin
+ * does not vanish from the page just because its bundle metadata is briefly
+ * unavailable.
+ * @param {string | null} dir - profile directory.
+ * @param {string} name - package name.
+ * @returns {Promise<Record<string, any> | null>}
+ */
+async function readInstalledManifest(dir, name) {
+	if (dir === null) return null;
+	const text = await readText(join(dir, "node_modules", name, "package.json"));
+	if (text === null) return null;
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Build the response entry for one recorded dependency.
  * @param {import("cordis").Context} ctx - Host context.
- * @param {{ name: string, spec: string, bundle: any, lock: Map<string, any>, force: boolean }} input - facts.
+ * @param {{ name: string, spec: string, bundle: any, lock: Map<string, any>, force: boolean, dir: string | null }} input - facts.
  * @returns {Promise<object | null>}
  */
-async function checkPlugin(ctx, { name, spec, bundle, lock, force }) {
-	if (bundle === undefined || bundle.availability !== "profile") return null;
+async function checkPlugin(ctx, { name, spec, bundle, lock, force, dir }) {
+	const installed = await readInstalledManifest(dir, name);
+	if (bundle === undefined && installed?.dsh?.bundle === undefined) return null;
+	if (bundle !== undefined && bundle.availability === "installation") return null;
 	const info = parseDependencySpec(spec);
 	const installedCommit = commitFromResolution(lock.get(name)?.version);
 	const cached = checkCache.get(name);
@@ -283,14 +305,20 @@ async function checkPlugin(ctx, { name, spec, bundle, lock, force }) {
 		check = await resolveCheck(ctx, { name, info, installedCommit, bundle });
 		checkCache.set(name, { at: Date.now(), installedCommit, check });
 	}
+	// A bundle the manager cannot read right now (for example between a removal
+	// and its reinstallation) keeps its row, but offers no update action until
+	// the next read sees it again.
+	if ((bundle === undefined || bundle.availability !== "profile") && check.status !== "unsupported") {
+		check = { ...check, status: "unknown", reason: "unavailable" };
+	}
 	return {
 		name,
-		title: bundle.meta?.title ?? null,
-		description: bundle.meta?.description ?? null,
-		version: bundle.version ?? null,
-		enabled: bundle.enabled === true,
-		official: bundle.official === true,
-		source: redactSource(bundle.source ?? spec),
+		title: bundle?.meta?.title ?? null,
+		description: bundle?.meta?.description ?? null,
+		version: bundle?.version ?? installed?.version ?? null,
+		enabled: typeof bundle?.enabled === "boolean" ? bundle.enabled : null,
+		official: bundle?.official === true,
+		source: redactSource(bundle?.source ?? spec),
 		kind: info.kind,
 		check,
 	};
@@ -339,9 +367,9 @@ async function statusPayload(ctx, force) {
 			if (bundle.installed === true && bundle.availability === "profile" && typeof bundle.source === "string") specs.set(bundle.name, bundle.source);
 		}
 	}
-	const names = [...specs.keys()].filter((name) => byName.has(name));
+	const names = [...specs.keys()];
 	const entries = await mapLimit(names, CHECK_CONCURRENCY, (name) =>
-		checkPlugin(ctx, { name, spec: specs.get(name), bundle: byName.get(name), lock: state.lock, force }),
+		checkPlugin(ctx, { name, spec: specs.get(name), bundle: byName.get(name), lock: state.lock, force, dir: state.dir }),
 	);
 	return {
 		checkedAt: Date.now(),
