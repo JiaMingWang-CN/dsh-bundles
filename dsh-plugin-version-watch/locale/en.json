@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Plugin version watch",
+    "description": "Lists installed plugin versions, checks Git commits and npm registries for updates, and updates plugins live from Settings without restarting."
+  }
+}

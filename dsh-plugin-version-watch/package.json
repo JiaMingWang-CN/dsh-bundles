@@ -1,0 +1,35 @@
+{
+  "name": "dsh-plugin-version-watch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Version watch for installed DSH plugins: list installed versions, check Git and npm sources for updates, and update them live from Settings without restarting.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/lockfile.js",
+    "lib/spec.js",
+    "patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web"
+    },
+    "bundle": {
+      "patch": "./patch.yml"
+    }
+  },
+  "license": "MIT"
+}

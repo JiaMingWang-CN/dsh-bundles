@@ -1,0 +1,6 @@
+# Plugin version watch: a Settings page that monitors installed plugin versions
+# and updates them in place (Git sources are removed and reinstalled at the
+# latest commit, registry sources use the plugin manager's update path).
+- insert:
+    - id: version-watch
+      name: "dsh-plugin-version-watch"
