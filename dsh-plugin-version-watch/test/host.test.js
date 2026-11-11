@@ -215,6 +215,7 @@ test("a failed removal keeps the plugin in place and says so", async () => {
 test("a failed reinstall reports the removed plugin and its redacted spec", async () => {
 	const dir = await createProfile({ dependencies: { demo: "github:owner/repo#path:demo" }, lockVersion: lockFromCommit("a".repeat(40)) });
 	const repo = await createRepo();
+	let installs = 0;
 	const manager = {
 		async listBundles() {
 			return [demoBundle];
@@ -223,6 +224,7 @@ test("a failed reinstall reports the removed plugin and its redacted spec", asyn
 			return { changed: true, application: "applied", stage: "remove", target: "demo" };
 		},
 		async installBundle() {
+			installs += 1;
 			return {
 				changed: false,
 				application: "failed",
@@ -247,6 +249,7 @@ test("a failed reinstall reports the removed plugin and its redacted spec", asyn
 		assert.equal(answer.error.code, "install-failed");
 		assert.match(answer.source, /^https:\/\/github\.com/);
 		assert.match(answer.error.detail, /incompatible-version/);
+		assert.equal(installs, 1, "a non-network failure is not retried");
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 		await rm(repo.dir, { recursive: true, force: true });
@@ -406,5 +409,54 @@ test("a plain dependency without a bundle patch stays out of the list", async ()
 		assert.deepEqual(payload.plugins, []);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
+	}
+});
+
+test("a transient reinstall failure is retried before reporting", async () => {
+	const repo = await createRepo();
+	const dir = await createProfile({ dependencies: { demo: "github:owner/repo#path:demo" }, lockVersion: lockFromCommit(repo.first) });
+	let installs = 0;
+	const manager = {
+		async listBundles() {
+			return [demoBundle];
+		},
+		async removeBundle() {
+			return { changed: true, application: "applied", stage: "remove", target: "demo" };
+		},
+		async installBundle() {
+			installs += 1;
+			if (installs === 1) {
+				return {
+					changed: false,
+					application: "failed",
+					stage: "install",
+					target: "demo",
+					failedAt: "spec-host",
+					packageResult: { exitCode: 0, output: "dsh: connection to github.com timed out after 5000ms", truncated: false, logPath: "x", kind: "timeout" },
+				};
+			}
+			await writeFile(
+				join(dir, "pnpm-lock.yaml"),
+				["lockfileVersion: '9.0'", "", "importers:", "", "  .:", "    dependencies:", "      demo:", "        specifier: github:owner/repo#path:demo", `        version: ${lockFromCommit(repo.second)}`, ""].join("\n"),
+			);
+			return { changed: true, application: "applied", stage: "install", target: "demo", bundle: "demo", version: "1.1.0" };
+		},
+	};
+	const ctx = context(dir, manager);
+	try {
+		const response = await __test.updateGitPlugin(ctx, {
+			name: "demo",
+			spec: "github:owner/repo#path:demo",
+			info: { kind: "git", repoUrl: repo.url, ref: "HEAD", subdir: null, semver: null, pinned: null },
+			bundle: demoBundle,
+		});
+		const answer = await response.json();
+		assert.equal(answer.ok, true);
+		assert.equal(answer.status, "updated");
+		assert.equal(answer.attempts, 2);
+		assert.equal(installs, 2);
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+		await rm(repo.dir, { recursive: true, force: true });
 	}
 });

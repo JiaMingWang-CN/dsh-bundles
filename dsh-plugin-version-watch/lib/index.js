@@ -409,6 +409,35 @@ async function updatePayload(ctx, name) {
 }
 
 /**
+ * Install one spec after its previous version was removed.
+ *
+ * A failure that happened before the package was installed — the manager's
+ * GitHub reachability check or a pnpm network error — is retried, because the
+ * plugin is already uninstalled and a transient network problem should not
+ * leave it that way.
+ * @param {import("cordis").Context} ctx - Host context.
+ * @param {string} spec - recorded install spec.
+ * @param {{ enabled: boolean }} options - install options.
+ * @returns {Promise<{ result?: any, thrown?: unknown, attempts: number }>}
+ */
+async function installWithRetry(ctx, spec, options) {
+	const maxAttempts = 3;
+	for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+		let result;
+		try {
+			result = await ctx.pluginManager.installBundle(spec, options);
+		} catch (error) {
+			return { thrown: error, attempts: attempt };
+		}
+		const transient = result?.application === "failed"
+			&& (result.failedAt === "spec-host" || result.packageResult?.kind === "timeout" || result.packageResult?.kind === "network");
+		if (!transient || attempt === maxAttempts) return { result, attempts: attempt };
+		await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+	}
+	return { result: undefined, attempts: maxAttempts };
+}
+
+/**
  * Remove and reinstall a Git-sourced plugin, resolving the newest commit.
  * @param {import("cordis").Context} ctx - Host context.
  * @param {{ name: string, spec: string, info: ReturnType<typeof parseDependencySpec>, bundle: any }} input - facts.
@@ -471,10 +500,8 @@ async function updateGitPlugin(ctx, { name, spec, info, bundle }) {
 	}
 
 	checkCache.delete(name);
-	let installation;
-	try {
-		installation = await ctx.pluginManager.installBundle(spec, { enabled: bundle.enabled === true });
-	} catch (error) {
+	const installation = await installWithRetry(ctx, spec, { enabled: bundle.enabled === true });
+	if (installation.thrown !== undefined) {
 		return reply(502, {
 			ok: false,
 			status: "failed",
@@ -483,15 +510,16 @@ async function updateGitPlugin(ctx, { name, spec, info, bundle }) {
 			removed: true,
 			source: redactSource(spec),
 			to: { version: null, commit: remoteCommit },
-			error: { code: "install-failed", detail: truncate(String(error?.message ?? error)) },
+			error: { code: "install-failed", detail: truncate(String(installation.thrown?.message ?? installation.thrown)) },
 		});
 	}
+	const installedResult = installation.result;
 	const fresh = await profileState(ctx);
 	const freshBundles = (await ctx.pluginManager.listBundles().catch(() => [])) ?? [];
 	const freshBundle = freshBundles.find((candidate) => candidate.name === name);
 	const to = { version: freshBundle?.version ?? null, commit: commitFromResolution(fresh.lock.get(name)?.version) ?? remoteCommit };
-	const application = installation?.application;
-	if (application === "failed" || application === "cancelled") {
+	const application = installedResult?.application;
+	if (installedResult === undefined || application === "failed" || application === "cancelled") {
 		return reply(502, {
 			ok: false,
 			status: "failed",
@@ -501,7 +529,8 @@ async function updateGitPlugin(ctx, { name, spec, info, bundle }) {
 			source: redactSource(spec),
 			to,
 			application,
-			error: { code: "install-failed", detail: installDetail(installation) },
+			attempts: installation.attempts,
+			error: { code: "install-failed", detail: installDetail(installedResult) },
 		});
 	}
 	return reply(200, {
@@ -511,7 +540,8 @@ async function updateGitPlugin(ctx, { name, spec, info, bundle }) {
 		from: { version: bundle.version ?? null, commit: installedCommit },
 		to,
 		application,
-		restartReason: installation?.restartReason ?? null,
+		attempts: installation.attempts,
+		restartReason: installedResult?.restartReason ?? null,
 	});
 }
 
