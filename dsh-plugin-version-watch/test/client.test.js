@@ -168,6 +168,14 @@ test("update outcomes are worded by status and failure code", async () => {
 	assert.match(plugin.resultText({ phase: "failed", error: "boom" }, t).text, /更新失败 · boom/);
 });
 
+test("the update action targets the route this bundle registers", async () => {
+	const { readFile } = await import("node:fs/promises");
+	const source = await readFile(new URL("../lib/client.js", import.meta.url), "utf8");
+	assert.match(source, /requestJson\(UPDATE_ROUTE/);
+	assert.doesNotMatch(source, /UPDATE_URL/);
+	assert.match(source, /const UPDATE_ROUTE = "api\/version-watch\/update"/);
+});
+
 test("a failed read replaces the list with an error line", async () => {
 	const plugin = await load();
 	const t = (key) => plugin.DICT.zh[key] ?? key;

@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-version-watch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Version watch for installed DSH plugins: list installed versions, check Git and npm sources for updates, and update them live from Settings without restarting.",
   "type": "module",

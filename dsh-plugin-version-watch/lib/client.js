@@ -528,7 +528,7 @@ window.__ModuleLoader__.load({
 				setBusy(plugin.name);
 				setResults((previous) => ({ ...previous, [plugin.name]: { phase: "updating" } }));
 				try {
-					const answer = await requestJson(UPDATE_URL, {
+					const answer = await requestJson(UPDATE_ROUTE, {
 						method: "POST",
 						headers: { "content-type": "application/json" },
 						body: JSON.stringify({ name: plugin.name }),
