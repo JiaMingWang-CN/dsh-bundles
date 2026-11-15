@@ -22,12 +22,12 @@ dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 ## Context7 登录（首次使用，等同 `npx ctx7 setup`）
 
-Context7 以 **API Key 模式**运行，但不再需要手工改配置填 Key：
+Context7 以 **API Key 模式**运行，但不再需要手工改配置填 Key。启用后按以下顺序处理：
 
-1. 插件首次启用且尚未登录时，会自动发起 Context7 的 **OAuth 设备码登录**（与官方 `npx ctx7 setup` 同一个流程、同一个公开 OAuth 端点）；
-2. 在对话里让代理调用 **`context7_login`** 工具，它会返回验证链接和一次性验证码（启动日志里也会打印一份）；
-3. 在浏览器打开链接、输入验证码并批准后，Context7 签发的 API Key 会**自动存入 DSH 凭据库**（`CONTEXT7_API_KEY`，配置文件中只有引用，没有明文）；
-4. 凭据写入后 `mcp-context7` 行会自动重连，`mcp__context7__*` 工具即可使用。
+1. **优先复用官方登录**：若本机已有官方 `ctx7` CLI 保存的凭据文件（`~/.config/context7/credentials.json`，遵循 `XDG_CONFIG_HOME`，并兼容旧路径 `~/.context7/credentials.json`）且含 `access_token`，直接导入为 DSH 凭据 `CONTEXT7_API_KEY`，无需再次登录；
+2. 若没有可复用凭据，则自动发起 Context7 的 **OAuth 设备码登录**（与官方 `npx ctx7 setup` 同一个流程、同一个公开 OAuth 端点）；
+3. 在对话里让代理调用 **`context7_login`** 工具，它会返回验证链接和一次性验证码（启动日志里也会打印一份）；
+4. 在浏览器批准后，签发的 API Key **自动存入 DSH 凭据库**（`CONTEXT7_API_KEY`，配置文件中只有引用，没有明文）；凭据写入后 `mcp-context7` 行会自动重连，`mcp__context7__*` 工具即可使用。
 
 只有未登录时，系统提示里会出现一条简短提示，引导代理调用 `context7_login`；登录后不再出现。Key 保存在 DSH 凭据里，跨插件升级与会话重启都保留。
 
@@ -53,4 +53,5 @@ npm test
 - `patch.yml`：三条 loader 行（`context7-auth` 登录插件，以及两个 MCP client 行）；
 - `lib/index.js`：Context7 登录 Host 插件（`context7_login` 工具 + 登录提示 + 凭据写入）；
 - `lib/oauth.js`：Context7 设备码 OAuth 的纯逻辑，`fetch` 可注入，便于测试；
-- `test/oauth.test.js`：设备码流程状态机的单元测试。
+- `lib/ctx7-store.js`：读取官方 `ctx7` CLI 已保存的凭据文件（含 XDG/legacy 路径），复用已有登录；
+- `test/oauth.test.js`、`test/ctx7-store.test.js`：设备码状态机与凭据文件读取的单元测试。

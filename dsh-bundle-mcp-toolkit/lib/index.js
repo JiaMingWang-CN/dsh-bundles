@@ -25,6 +25,7 @@ import { hostname } from 'node:os'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { startDeviceAuthorization, pollDeviceToken } from './oauth.js'
+import { readCtx7ApiKey } from './ctx7-store.js'
 
 /** Stable Cordis plugin name. */
 export const name = 'context7-auth'
@@ -92,6 +93,19 @@ class Context7Login {
       this.authenticated = false
     }
     return this.authenticated
+  }
+
+  /**
+   * Reuse a key the official `ctx7` CLI already stored, so a user who ran
+   * `npx ctx7 setup` does not have to sign in a second time.
+   * @returns {{ apiKey: string, path: string } | undefined}
+   */
+  importFromStore() {
+    try {
+      return readCtx7ApiKey()
+    } catch {
+      return undefined
+    }
   }
 
   /**
@@ -180,9 +194,21 @@ class Context7Login {
     this.authenticated = true
   }
 
-  /** Runs once at activation: sign in already, or get a link ready. */
+  /** Runs once at activation: reuse a ctx7 login, sign in, or get a link ready. */
   async bootstrap() {
     if (await this.refresh()) return
+    const stored = this.importFromStore()
+    if (stored) {
+      try {
+        await this.commit(stored.apiKey)
+        console.log(`[context7-auth] 已从 ctx7 凭据文件导入 Context7 API Key（${stored.path}）。`)
+        return
+      } catch (error) {
+        console.warn(
+          `[context7-auth] 导入 ctx7 凭据失败，改用设备码登录：${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+    }
     try {
       const flow = await this.ensureFlow()
       if (flow) {
@@ -273,6 +299,19 @@ export function apply(ctx) {
           authenticated: true,
           status: 'authenticated',
           message: 'Context7 已登录，API Key 已配置，可以直接使用 mcp__context7__ 工具。',
+        }
+      }
+      const stored = login.importFromStore()
+      if (stored) {
+        try {
+          await login.commit(stored.apiKey)
+          return {
+            authenticated: true,
+            status: 'imported',
+            message: `已从 ctx7 凭据文件（${stored.path}）导入 API Key，Context7 工具随即可用。`,
+          }
+        } catch (error) {
+          throw new Error(`导入 ctx7 凭据失败：${error instanceof Error ? error.message : String(error)}`)
         }
       }
       const flow = await login.ensureFlow()
