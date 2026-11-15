@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 MCP toolkit, a third-party web search provider with one switch back to the built-in search, cross-session memory with automatic dreaming, and plugin version watch. All five packages are published on npm under the `@wjm200509` scope.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 MCP toolkit, a third-party web search provider with one switch back to the built-in search, cross-session memory with automatic dreaming. All four packages are published on npm under the `@wjm200509` scope.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -67,7 +67,7 @@ CodeGraph and Context7 launch through `npx -y`; no global package installation i
 
 ### Install from npm
 
-All five packages are published on npm under the `@wjm200509` scope. Run the commands for the bundles you want:
+All four packages are published on npm under the `@wjm200509` scope. Run the commands for the bundles you want:
 
 ```powershell
 # Task-completion notifications
@@ -81,9 +81,6 @@ dsh plugin --profile web add -w "@wjm200509/dsh-web-search"
 
 # Cross-session memory with automatic dreaming
 dsh plugin --profile web add -w "@wjm200509/dsh-memory"
-
-# Plugin version watch
-dsh plugin --profile web add -w "@wjm200509/dsh-plugin-version-watch"
 ```
 
 Source-directory installs from GitHub still work:
@@ -109,7 +106,7 @@ This repository also serves as a DSH plugin-market index. `index.json` is genera
 https://jiamingwang-cn.github.io/dsh-bundles/index.json
 ```
 
-Add that URL under **Plugins → Discover → Add index source** to search, open and install the five packages (enable the "Custom plugin indexes" experimental bundle first).
+Add that URL under **Plugins → Discover → Add index source** to search, open and install the four packages (enable the "Custom plugin indexes" experimental bundle first).
 
 Regenerate and check locally:
 
@@ -180,7 +177,7 @@ dsh plugin --profile web update @wjm200509/dsh-web-search
 Remove these bundles:
 
 ```powershell
-dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search @wjm200509/dsh-memory @wjm200509/dsh-plugin-version-watch
+dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search @wjm200509/dsh-memory
 ```
 
 Restart DSH after updating or uninstalling.
@@ -201,7 +198,7 @@ CodeGraph and Context7 use `npx -y`. The first run downloads the package; later 
 
 ### Which DSH versions are supported
 
-All five packages are adapted to DSH **0.2.2-rc.1** (current latest): the host halves mount, and the
+All four packages are adapted to DSH **0.2.2-rc.1** (current latest): the host halves mount, and the
 tests of `dsh-web-search` and `dsh-client-ui-task-notify` run directly against the 0.2.2-rc.1 contract
 packages. Their `engines.dsh` range keeps
 `0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-alpha.x`, and `0.2.2-rc.1`. The search plugin only adds a third-party provider;
@@ -231,7 +228,6 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-memory
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-plugin-version-watch
 ```
 
 Run the tests (web search ships a `node --test` suite):
@@ -249,7 +245,6 @@ dsh-bundles/
 ├── dsh-bundle-mcp-toolkit/
 ├── dsh-web-search/
 ├── dsh-memory/
-├── dsh-plugin-version-watch/
 ├── market/display.json              # titles, descriptions and categories for the index
 ├── scripts/build-market-index.mjs   # writes _site/index.json from the npm registry
 └── .github/workflows/plugin-market.yml

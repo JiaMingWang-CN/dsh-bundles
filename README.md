@@ -2,7 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 MCP 工具集、可一键交回内置的第三方网页搜索、带自动 dreaming 的跨会话记忆，以及插件更新监控。五个包都发布在 npm 的 `@wjm200509` scope 下。
+一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 MCP 工具集、可一键交回内置的第三方网页搜索、带自动 dreaming 的跨会话记忆。四个包都发布在 npm 的 `@wjm200509` scope 下。
 
 每个目录都是一个可单独安装的 bundle。只安装需要的部分即可。
 
@@ -67,7 +67,7 @@ CodeGraph 与 Context7 由 `npx -y` 启动，都不要求全局安装。
 
 ### 从 npm 安装
 
-五个包都发布在 npm 的 `@wjm200509` scope 下，分别执行需要的命令：
+四个包都发布在 npm 的 `@wjm200509` scope 下，分别执行需要的命令：
 
 ```powershell
 # 任务完成通知
@@ -81,9 +81,6 @@ dsh plugin --profile web add -w "@wjm200509/dsh-web-search"
 
 # 跨会话记忆 + 自动 dreaming
 dsh plugin --profile web add -w "@wjm200509/dsh-memory"
-
-# 插件更新监控
-dsh plugin --profile web add -w "@wjm200509/dsh-plugin-version-watch"
 ```
 
 也可以从 GitHub 源码目录安装：
@@ -109,7 +106,7 @@ dsh --profile web --dump-config
 https://jiamingwang-cn.github.io/dsh-bundles/index.json
 ```
 
-在 DSH 的 **Plugins → Discover → Add index source** 里添加该地址即可搜索、查看条目并一键安装上面的五个包（需先打开实验功能「Custom plugin indexes」）。
+在 DSH 的 **Plugins → Discover → Add index source** 里添加该地址即可搜索、查看条目并一键安装上面的四个包（需先打开实验功能「Custom plugin indexes」）。
 
 本地重新生成并检查：
 
@@ -180,7 +177,7 @@ dsh plugin --profile web update @wjm200509/dsh-web-search
 卸载本仓库的 bundle：
 
 ```powershell
-dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search @wjm200509/dsh-memory @wjm200509/dsh-plugin-version-watch
+dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search @wjm200509/dsh-memory
 ```
 
 更新或卸载后建议重启 DSH。
@@ -201,7 +198,7 @@ CodeGraph 与 Context7 使用 `npx -y`。第一次运行都需要下载包，后
 
 ### 支持哪些 DSH 版本
 
-五个包均已适配 DSH **0.2.2-rc.1**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 与 `dsh-client-ui-task-notify` 的单测直接跑在
+四个包均已适配 DSH **0.2.2-rc.1**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 与 `dsh-client-ui-task-notify` 的单测直接跑在
 0.2.2-rc.1 契约包上。它们的 `engines.dsh` 同时保留 `0.1.7-rc.2`、`0.2.0-rc.2`、`0.2.1-alpha.x` 与 `0.2.2-rc.1`。搜索插件只增加
 第三方 provider；关闭总开关会写回内置 provider，0.2.1 新增的内置 `web-deepseek-api` 与本插件互不影响。
 
@@ -228,7 +225,6 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-memory
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-plugin-version-watch
 ```
 
 运行测试（网页搜索带 `node --test` 测试）：
@@ -246,7 +242,6 @@ dsh-bundles/
 ├── dsh-bundle-mcp-toolkit/
 ├── dsh-web-search/
 ├── dsh-memory/
-├── dsh-plugin-version-watch/
 ├── market/display.json              # 索引里的标题、描述、分类
 ├── scripts/build-market-index.mjs   # 从 npm registry 生成 _site/index.json
 └── .github/workflows/plugin-market.yml

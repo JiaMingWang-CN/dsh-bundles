@@ -34,15 +34,5 @@
     },
     "category": "memory",
     "keywords": ["memory", "dreaming"]
-  },
-  "dsh-plugin-version-watch": {
-    "title": { "en": "Plugin version watch", "zh": "插件更新监控" },
-    "description": {
-      "en": "List installed plugin versions, check Git and npm sources, and update live from Settings.",
-      "zh": "在设置页列出版本、检查 Git/npm 来源更新，并实时更新插件。"
-    },
-    "category": "tools",
-    "keywords": ["plugin-update", "version-watch"],
-    "icon": "icon.svg"
   }
 }
