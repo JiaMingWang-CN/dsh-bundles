@@ -1,6 +1,6 @@
 {
   "name": "@wjm200509/dsh-memory",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Cross-session agent memory for DSH: notes the agent keeps across sessions, plus automatic dreaming that corrects and compacts them against session transcripts",
   "type": "module",
   "author": "JiaMingWang-CN",

@@ -95,7 +95,7 @@ Rules:
 - User partition: change or delete a user-level note only when the transcripts show it does not hold in general. If it merely does not apply to this project, keep it and record the exception in the project partition. A user note that is plainly about this project only belongs in the project partition: move it.
 ${SHARED_RULES}
 
-Finish by calling dream_report once: a short summary of what you changed and why, and everything left unresolved.`;
+Finish by calling dream_report once: a short summary of what you changed and why, and everything left unresolved. Write that summary and the unresolved items in Simplified Chinese (简体中文), regardless of the language of the transcripts.`;
 }
 
 /**
@@ -129,5 +129,5 @@ Rules:
 - Move notes as they are, keeping their evidence and citations; do not invent evidence.
 ${SHARED_RULES}
 
-Finish by calling dream_report once: a short summary of what you moved and why, and everything left unresolved.`;
+Finish by calling dream_report once: a short summary of what you moved and why, and everything left unresolved. Write that summary and the unresolved items in Simplified Chinese (简体中文).`;
 }

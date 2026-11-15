@@ -232,10 +232,10 @@ export function transcriptTools(ctx, { cwd, sessionIds, progress = new Map(), fr
 export function reportTool(holder) {
 	return defineTool({
 		name: "dream_report",
-		description: "Call once when you are done: what you changed and why, and everything left unresolved.",
+		description: "Call once when you are done: what you changed and why, and everything left unresolved. Write the summary and the unresolved items in Simplified Chinese (简体中文).",
 		parameters: {
-			summary: { type: "string", required: true, description: "Short summary of what you changed and why." },
-			unresolved: { type: "string", description: "One item per line: notes you could not verify or fix, checks that failed, work you skipped, and why. Empty when none." }
+			summary: { type: "string", required: true, description: "Short summary of what you changed and why, in Simplified Chinese (简体中文)." },
+			unresolved: { type: "string", description: "One item per line, in Simplified Chinese (简体中文): notes you could not verify or fix, checks that failed, work you skipped, and why. Empty when none." }
 		},
 		output: TEXT_OUTPUT,
 		async execute(args) {

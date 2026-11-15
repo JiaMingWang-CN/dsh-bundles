@@ -93,3 +93,8 @@ test("pre-computed checks reach the prompts, and only when there are some", () =
 test("the cross-project prompt points at memory_move for moving notes", () => {
 	assert.match(crossDreamPrompt({ projects: [], indexMaxBytes: 4096 }), /memory_move/);
 });
+
+test("both prompts ask for the dream_report summary in Simplified Chinese", () => {
+	assert.match(prompt, /Simplified Chinese \(简体中文\)/);
+	assert.match(crossDreamPrompt({ projects: [], indexMaxBytes: 4096 }), /Simplified Chinese \(简体中文\)/);
+});
