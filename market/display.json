@@ -1,0 +1,48 @@
+{
+  "dsh-client-ui-task-notify": {
+    "title": { "en": "Task completion notifications", "zh": "任务完成通知" },
+    "description": {
+      "en": "Send a system notification when the main session finishes while the page is not focused.",
+      "zh": "主会话完成且页面不在前台时发送系统通知，可选手动提示音，开关持久化。"
+    },
+    "category": "ui",
+    "keywords": ["notification", "task-complete", "sound"]
+  },
+  "dsh-bundle-mcp-toolkit": {
+    "title": { "en": "MCP toolkit (CodeGraph, Context7, Browser-Use)", "zh": "MCP 工具集" },
+    "description": {
+      "en": "Register CodeGraph, Context7 and Browser-Use MCP servers over stdio.",
+      "zh": "通过 stdio 注册 CodeGraph、Context7、Browser-Use 三个 MCP server。"
+    },
+    "category": "tools",
+    "keywords": ["mcp", "codegraph", "context7", "browser-use"]
+  },
+  "dsh-web-search": {
+    "title": { "en": "Third-party web search", "zh": "第三方网页搜索" },
+    "description": {
+      "en": "Switchable Tavily / model-native web search, with a switch back to DSH's built-in search.",
+      "zh": "可切换 Tavily / 模型自带联网搜索，一键交回 DSH 内置搜索。"
+    },
+    "category": "search",
+    "keywords": ["web-search", "tavily", "model-native"]
+  },
+  "dsh-memory": {
+    "title": { "en": "Cross-session memory", "zh": "跨会话记忆" },
+    "description": {
+      "en": "Notes the agent keeps across sessions, with automatic dreaming that corrects and compacts them.",
+      "zh": "让 agent 跨会话记住教训与做法，并在会话结束后自动整理记忆。"
+    },
+    "category": "memory",
+    "keywords": ["memory", "dreaming"]
+  },
+  "dsh-plugin-version-watch": {
+    "title": { "en": "Plugin version watch", "zh": "插件更新监控" },
+    "description": {
+      "en": "List installed plugin versions, check Git and npm sources, and update live from Settings.",
+      "zh": "在设置页列出版本、检查 Git/npm 来源更新，并实时更新插件。"
+    },
+    "category": "tools",
+    "keywords": ["plugin-update", "version-watch"],
+    "icon": "icon.svg"
+  }
+}

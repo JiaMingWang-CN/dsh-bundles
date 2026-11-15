@@ -31,7 +31,10 @@ memory/
 ## 安装
 
 ```powershell
-# 从 GitHub
+# 从 npm
+dsh plugin --profile web add -w "@wjm200509/dsh-memory"
+
+# 从 GitHub（源码目录）
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-memory"
 
 # 本地目录

@@ -1,8 +1,35 @@
 {
-  "name": "dsh-bundle-mcp-toolkit",
+  "name": "@wjm200509/dsh-bundle-mcp-toolkit",
   "version": "1.0.0",
   "description": "MCP toolkit bundle: codegraph, context7 and browser-use MCP servers as stdio clients",
   "type": "module",
+  "author": "JiaMingWang-CN",
+  "license": "MIT",
+  "homepage": "https://github.com/JiaMingWang-CN/dsh-bundles#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JiaMingWang-CN/dsh-bundles",
+    "directory": "dsh-bundle-mcp-toolkit"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "mcp",
+    "codegraph",
+    "context7",
+    "browser-use"
+  ],
+  "files": [
+    "patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "dsh": "^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.2.1-alpha.2 || ^0.2.2-rc.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dsh": {
     "bundle": {
       "patch": "./patch.yml"

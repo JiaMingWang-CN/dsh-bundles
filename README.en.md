@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 + Browser-Use MCP toolkit, a third-party web search provider with one switch back to the built-in search, and cross-session memory with automatic dreaming.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 + Browser-Use MCP toolkit, a third-party web search provider with one switch back to the built-in search, cross-session memory with automatic dreaming, and plugin version watch. All five packages are published on npm under the `@wjm200509` scope.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -10,6 +10,7 @@ Each directory is an independently installable bundle. Install only what you nee
 
 - [What's included](#whats-included)
 - [Quick install](#quick-install)
+- [Plugin index](#plugin-index)
 - [Installing the MCP tools](#installing-the-mcp-tools)
   - [CodeGraph](#codegraph)
   - [Context7](#context7)
@@ -67,22 +68,32 @@ CodeGraph and Context7 launch through `npx -y` and Browser-Use through `uvx`; no
 - `npx` is available on Windows, macOS, or Linux;
 - Browser-Use additionally requires `uv` (provides `uvx`; install from https://docs.astral.sh/uv/) and Python 3.12.
 
-### Install from GitHub
+### Install from npm
 
-Run the commands for the bundles you want:
+All five packages are published on npm under the `@wjm200509` scope. Run the commands for the bundles you want:
 
 ```powershell
 # Task-completion notifications
-dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-task-notify"
+dsh plugin --profile web add -w "@wjm200509/dsh-client-ui-task-notify"
 
 # CodeGraph + Context7 + Browser-Use MCP toolkit
-dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-bundle-mcp-toolkit"
+dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 # Third-party web search (Tavily / model-native, one switch back to built-in)
-dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
+dsh plugin --profile web add -w "@wjm200509/dsh-web-search"
 
 # Cross-session memory with automatic dreaming
-dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-memory"
+dsh plugin --profile web add -w "@wjm200509/dsh-memory"
+
+# Plugin version watch
+dsh plugin --profile web add -w "@wjm200509/dsh-plugin-version-watch"
+```
+
+Source-directory installs from GitHub still work:
+
+```powershell
+dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-client-ui-task-notify"
+# Replace path: with the directory of another bundle
 ```
 
 Confirm that the bundles are present in the web profile:
@@ -92,6 +103,22 @@ dsh --profile web --dump-config
 ```
 
 The first MCP startup takes longer because `npx`/`uvx` must download the server packages.
+
+## Plugin index
+
+This repository also serves as a DSH plugin-market index. `index.json` is generated from the npm registry by `scripts/build-market-index.mjs`, and GitHub Actions publishes it to Pages on every push to main:
+
+```text
+https://jiamingwang-cn.github.io/dsh-bundles/index.json
+```
+
+Add that URL under **Plugins → Discover → Add index source** to search, open and install the five packages (enable the "Custom plugin indexes" experimental bundle first).
+
+Regenerate and check locally:
+
+```powershell
+node scripts/build-market-index.mjs   # writes _site/index.json
+```
 
 ## Installing the MCP tools
 
@@ -157,13 +184,13 @@ dsh plugin --profile web update
 Update one plugin:
 
 ```powershell
-dsh plugin --profile web update dsh-web-search
+dsh plugin --profile web update @wjm200509/dsh-web-search
 ```
 
 Remove these bundles:
 
 ```powershell
-dsh plugin --profile web remove -w dsh-client-ui-task-notify dsh-bundle-mcp-toolkit dsh-web-search
+dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search @wjm200509/dsh-memory @wjm200509/dsh-plugin-version-watch
 ```
 
 Restart DSH after updating or uninstalling.
@@ -184,9 +211,9 @@ CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run do
 
 ### Which DSH versions are supported
 
-All three bundles are adapted to DSH **0.2.2-rc.1** (current latest): the host halves mount, and the
+All five packages are adapted to DSH **0.2.2-rc.1** (current latest): the host halves mount, and the
 tests of `dsh-web-search` and `dsh-client-ui-task-notify` run directly against the 0.2.2-rc.1 contract
-packages. Its peer range also keeps
+packages. Their `engines.dsh` range keeps
 `0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-alpha.x`, and `0.2.2-rc.1`. The search plugin only adds a third-party provider;
 turning the master switch off writes a built-in provider back, so 0.2.1's built-in
 `web-deepseek-api` and this bundle do not interfere.
@@ -214,6 +241,7 @@ dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-memory
+dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-plugin-version-watch
 ```
 
 Run the tests (web search ships a `node --test` suite):
@@ -229,5 +257,10 @@ Repository layout:
 dsh-bundles/
 ├── dsh-client-ui-task-notify/
 ├── dsh-bundle-mcp-toolkit/
-└── dsh-web-search/
+├── dsh-web-search/
+├── dsh-memory/
+├── dsh-plugin-version-watch/
+├── market/display.json              # titles, descriptions and categories for the index
+├── scripts/build-market-index.mjs   # writes _site/index.json from the npm registry
+└── .github/workflows/plugin-market.yml
 ```

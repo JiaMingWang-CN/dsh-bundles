@@ -22,7 +22,10 @@
 ## 安装
 
 ```powershell
-# 从 GitHub
+# 从 npm
+dsh plugin --profile web add -w "@wjm200509/dsh-web-search"
+
+# 从 GitHub（源码目录）
 dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-web-search"
 
 # 本地目录
@@ -102,8 +105,8 @@ dsh --profile web --dump-config
 ## 版本与兼容
 
 - 0.4.0：从"接管"改为"补充"；删除插件内的 DeepSeek 官方引擎，交由 DSH 内置 provider 处理。
-- 适配 DSH **0.2.1-rc.2**（当前最新）；测试依赖固定到该版本，peer 范围同时保留
-  `0.2.0-rc.2`、`0.2.1-alpha.x` 与 `0.1.7-rc.2`。
+- 适配 DSH **0.2.2-rc.1**（当前最新）；测试依赖固定到该版本，peer 范围同时保留
+  `0.1.7-rc.2`、`0.2.0-rc.2` 与 `0.2.1-alpha.x`。
 - 官方 Search API 文档：<https://api-docs.deepseek.com/api/search>。
 
 ## 本地开发

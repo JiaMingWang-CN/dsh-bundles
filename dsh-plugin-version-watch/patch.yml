@@ -3,4 +3,4 @@
 # latest commit, registry sources use the plugin manager's update path).
 - insert:
     - id: version-watch
-      name: "dsh-plugin-version-watch"
+      name: "@wjm200509/dsh-plugin-version-watch"

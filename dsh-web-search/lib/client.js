@@ -438,7 +438,7 @@ window.__ModuleLoader__.load({
 			}, "web-search: styles");
 			ctx.effect(() => ctx.configForms.whileServed([name], () => {
 				const offRow = ctx.slots.inject("plugins.row.config", () => ctx.slots.register(
-					{ name: "plugins.row.config", key: "dsh-web-search#web-search" },
+					{ name: "plugins.row.config", key: "@wjm200509/dsh-web-search#web-search" },
 					/* `summary` is the row's static one-liner: no form, no credential lookup. */
 					(props) => props.view === "summary" ? DESCRIPTION : React.createElement(WebSearchCard, { ...props, host, webHost, remote: ctx.remote }),
 				));

@@ -6,4 +6,4 @@
 # uninstall so a reinstall keeps what the agent learned.
 - insert:
     - id: memory
-      name: 'dsh-memory'
+      name: '@wjm200509/dsh-memory'

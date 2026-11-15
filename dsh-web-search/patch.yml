@@ -15,7 +15,7 @@
 # and removing this bundle restores the shipped behavior.
 - insert:
     - id: web-search
-      name: 'dsh-web-search'
+      name: '@wjm200509/dsh-web-search'
 - id: web
   name: '@deepseek-ai/dsh-web'
   config:

@@ -19,9 +19,11 @@
 
 ## 安装
 
-在插件管理中安装本目录（绝对路径），或用：
-
 ```sh
+# 从 npm
+dsh plugin --profile <profile> add "@wjm200509/dsh-plugin-version-watch"
+
+# 本地目录
 dsh plugin --profile <profile> add /path/to/dsh-plugin-version-watch
 ```
 

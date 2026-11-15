@@ -342,6 +342,25 @@ test("a registry plugin without an installable newer version is already current"
 	}
 });
 
+test("resolveCheck accepts DSH 0.2.2-rc.3's update field in place of updatable", async () => {
+	const ctx = {
+		pluginManager: {
+			async listVersions() {
+				return { status: "listed", installed: "1.0.0", versions: [{ version: "1.1.0", bundle: true, prerelease: false, tags: ["latest"] }] };
+			},
+		},
+	};
+	const info = { kind: "registry" };
+	const fresh = await __test.resolveCheck(ctx, { name: "@scope/pkg", info, installedCommit: null, bundle: { update: "registry" } });
+	assert.equal(fresh.status, "available");
+	assert.equal(fresh.latestVersion, "1.1.0");
+	const legacy = await __test.resolveCheck(ctx, { name: "@scope/pkg", info, installedCommit: null, bundle: { updatable: true } });
+	assert.equal(legacy.status, "available");
+	const refused = await __test.resolveCheck(ctx, { name: "@scope/pkg", info, installedCommit: null, bundle: {} });
+	assert.equal(refused.status, "unsupported");
+	assert.equal(refused.reason, "not-updatable");
+});
+
 test("statusPayload lists profile plugins and local sources as unsupported", async () => {	const dir = await mkdtemp(join(tmpdir(), "vw-profile-"));
 	await writeFile(join(dir, "package.json"), JSON.stringify({ name: "profile", dependencies: { demo: "file:../demo" } }, null, 2));
 	await writeFile(join(dir, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");

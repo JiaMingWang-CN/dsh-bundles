@@ -237,7 +237,8 @@ async function resolveCheck(ctx, { name, info, installedCommit, bundle }) {
 	}
 
 	if (info.kind === "registry") {
-		if (bundle !== undefined && bundle.updatable !== true) {
+		// DSH 0.2.2-rc.3 replaced `updatable: boolean` with `update: 'registry' | 'git'`; accept both.
+		if (bundle !== undefined && bundle.update !== "registry" && bundle.updatable !== true) {
 			return { status: "unsupported", installedCommit: null, remoteCommit: null, remoteVersion: null, latestVersion: null, reason: "not-updatable" };
 		}
 		let answer;
