@@ -9,13 +9,13 @@
     "keywords": ["notification", "task-complete", "sound"]
   },
   "dsh-bundle-mcp-toolkit": {
-    "title": { "en": "MCP toolkit (CodeGraph, Context7, Browser-Use)", "zh": "MCP 工具集" },
+    "title": { "en": "MCP toolkit (CodeGraph, Context7)", "zh": "MCP 工具集" },
     "description": {
-      "en": "Register CodeGraph, Context7 and Browser-Use MCP servers over stdio.",
-      "zh": "通过 stdio 注册 CodeGraph、Context7、Browser-Use 三个 MCP server。"
+      "en": "Register CodeGraph and Context7 MCP servers over stdio.",
+      "zh": "通过 stdio 注册 CodeGraph、Context7 两个 MCP server。"
     },
     "category": "tools",
-    "keywords": ["mcp", "codegraph", "context7", "browser-use"]
+    "keywords": ["mcp", "codegraph", "context7"]
   },
   "dsh-web-search": {
     "title": { "en": "Third-party web search", "zh": "第三方网页搜索" },

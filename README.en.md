@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 + Browser-Use MCP toolkit, a third-party web search provider with one switch back to the built-in search, cross-session memory with automatic dreaming, and plugin version watch. All five packages are published on npm under the `@wjm200509` scope.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 MCP toolkit, a third-party web search provider with one switch back to the built-in search, cross-session memory with automatic dreaming, and plugin version watch. All five packages are published on npm under the `@wjm200509` scope.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -14,7 +14,6 @@ Each directory is an independently installable bundle. Install only what you nee
 - [Installing the MCP tools](#installing-the-mcp-tools)
   - [CodeGraph](#codegraph)
   - [Context7](#context7)
-  - [Browser-Use](#browser-use)
 - [Using the bundles](#using-the-bundles)
 - [Updating and uninstalling](#updating-and-uninstalling)
 - [Troubleshooting](#troubleshooting)
@@ -33,13 +32,12 @@ Each directory is an independently installable bundle. Install only what you nee
 
 ### MCP toolkit
 
-`dsh-bundle-mcp-toolkit` registers three stdio MCP servers with DSH:
+`dsh-bundle-mcp-toolkit` registers two stdio MCP servers with DSH:
 
 - **CodeGraph**: uses a local code index for symbol lookup, call paths, and architecture exploration;
-- **Context7**: supplies current third-party library documentation and examples to the agent;
-- **Browser-Use**: lets the agent drive a real browser (open pages, click, fill forms, scrape content).
+- **Context7**: supplies current third-party library documentation and examples to the agent.
 
-CodeGraph and Context7 launch through `npx -y` and Browser-Use through `uvx`; no global package installation is required.
+CodeGraph and Context7 launch through `npx -y`; no global package installation is required.
 
 ### Third-party search
 
@@ -65,8 +63,7 @@ CodeGraph and Context7 launch through `npx -y` and Browser-Use through `uvx`; no
 
 - DeepSeek Harness (dsh) is installed;
 - Node.js 20 or newer when using the MCP toolkit;
-- `npx` is available on Windows, macOS, or Linux;
-- Browser-Use additionally requires `uv` (provides `uvx`; install from https://docs.astral.sh/uv/) and Python 3.12.
+- `npx` is available on Windows, macOS, or Linux.
 
 ### Install from npm
 
@@ -76,7 +73,7 @@ All five packages are published on npm under the `@wjm200509` scope. Run the com
 # Task-completion notifications
 dsh plugin --profile web add -w "@wjm200509/dsh-client-ui-task-notify"
 
-# CodeGraph + Context7 + Browser-Use MCP toolkit
+# CodeGraph + Context7 MCP toolkit
 dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 # Third-party web search (Tavily / model-native, one switch back to built-in)
@@ -102,7 +99,7 @@ Confirm that the bundles are present in the web profile:
 dsh --profile web --dump-config
 ```
 
-The first MCP startup takes longer because `npx`/`uvx` must download the server packages.
+The first MCP startup takes longer because `npx` must download the server packages.
 
 ## Plugin index
 
@@ -136,12 +133,6 @@ CodeGraph builds a local knowledge graph for source code. One MCP server can ser
 
 Context7 starts without manual setup by default. If the service reports rate limits or requests authentication, run `npx ctx7 setup` and follow the official guided setup.
 
-### Browser-Use
-
-- **Project**: https://github.com/browser-use/browser-use
-
-Browser-Use launches through `uvx` and downloads its Python package on first run; it requires `uv` and Python 3.12 locally. The server process drives a real browser to perform web actions.
-
 ## Using the bundles
 
 ### Enable task notifications
@@ -169,7 +160,6 @@ Memory is on after install and the agent reads and writes it on its own. Open Se
 
 - CodeGraph queries require a `.codegraph/` index in the target project;
 - Context7 requires no project initialization;
-- Browser-Use requires no project initialization; tool calls drive a real browser;
 - A slow first server launch is expected while `npx` downloads packages;
 - Use `dsh --profile web --dump-config` to verify that the MCP clients are in the configuration stack.
 
@@ -207,7 +197,7 @@ codegraph init -i
 
 ### The MCP server is slow on first launch
 
-CodeGraph and Context7 use `npx -y` and Browser-Use uses `uvx`. The first run downloads the package; later runs use the local cache. All three versions are pinned in `dsh-bundle-mcp-toolkit/patch.yml` (CodeGraph `@colbymchenry/codegraph@1.6.2`, Context7 `@upstash/context7-mcp@4.5.0`, Browser-Use `browser-use==0.13.14`), so startup never re-resolves the latest release over the network; edit the versions there to upgrade.
+CodeGraph and Context7 use `npx -y`. The first run downloads the package; later runs use the local cache. Both versions are pinned in `dsh-bundle-mcp-toolkit/patch.yml` (CodeGraph `@colbymchenry/codegraph@1.6.2`, Context7 `@upstash/context7-mcp@4.5.0`), so startup never re-resolves the latest release over the network; edit the versions there to upgrade.
 
 ### Which DSH versions are supported
 

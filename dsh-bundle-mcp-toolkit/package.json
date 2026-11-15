@@ -1,7 +1,7 @@
 {
   "name": "@wjm200509/dsh-bundle-mcp-toolkit",
-  "version": "1.0.0",
-  "description": "MCP toolkit bundle: codegraph, context7 and browser-use MCP servers as stdio clients",
+  "version": "1.0.1",
+  "description": "MCP toolkit bundle: codegraph and context7 MCP servers as stdio clients",
   "type": "module",
   "author": "JiaMingWang-CN",
   "license": "MIT",
@@ -17,8 +17,7 @@
     "deepseek-harness",
     "mcp",
     "codegraph",
-    "context7",
-    "browser-use"
+    "context7"
   ],
   "files": [
     "patch.yml",

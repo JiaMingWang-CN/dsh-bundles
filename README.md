@@ -2,7 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 + Browser-Use MCP 工具集、可一键交回内置的第三方网页搜索、带自动 dreaming 的跨会话记忆，以及插件更新监控。五个包都发布在 npm 的 `@wjm200509` scope 下。
+一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 MCP 工具集、可一键交回内置的第三方网页搜索、带自动 dreaming 的跨会话记忆，以及插件更新监控。五个包都发布在 npm 的 `@wjm200509` scope 下。
 
 每个目录都是一个可单独安装的 bundle。只安装需要的部分即可。
 
@@ -14,7 +14,6 @@
 - [MCP 工具安装](#mcp-工具安装)
   - [CodeGraph](#codegraph)
   - [Context7](#context7)
-  - [Browser-Use](#browser-use)
 - [使用方式](#使用方式)
 - [更新与卸载](#更新与卸载)
 - [常见问题](#常见问题)
@@ -33,13 +32,12 @@
 
 ### MCP 工具集
 
-`dsh-bundle-mcp-toolkit` 向 DSH 注册三个 stdio MCP server：
+`dsh-bundle-mcp-toolkit` 向 DSH 注册两个 stdio MCP server：
 
 - **CodeGraph**：通过本地代码索引定位符号、调用路径和架构关系；
-- **Context7**：向 Agent 提供当前版本的第三方库文档与示例；
-- **Browser-Use**：让 Agent 驱动真实浏览器执行网页操作（打开页面、点击、填表、抓取内容）。
+- **Context7**：向 Agent 提供当前版本的第三方库文档与示例。
 
-CodeGraph 与 Context7 由 `npx -y` 启动，Browser-Use 由 `uvx` 启动，都不要求全局安装。
+CodeGraph 与 Context7 由 `npx -y` 启动，都不要求全局安装。
 
 ### 第三方搜索
 
@@ -65,8 +63,7 @@ CodeGraph 与 Context7 由 `npx -y` 启动，Browser-Use 由 `uvx` 启动，都�
 
 - 已安装 DeepSeek Harness（dsh）；
 - 使用 MCP 工具集时，需要 Node.js 20 或更高版本；
-- Windows、macOS 或 Linux 上可用的 `npx`；
-- 使用 Browser-Use 时，还需要 `uv`（提供 `uvx`，安装见 https://docs.astral.sh/uv/）与 Python 3.12。
+- Windows、macOS 或 Linux 上可用的 `npx`。
 
 ### 从 npm 安装
 
@@ -76,7 +73,7 @@ CodeGraph 与 Context7 由 `npx -y` 启动，Browser-Use 由 `uvx` 启动，都�
 # 任务完成通知
 dsh plugin --profile web add -w "@wjm200509/dsh-client-ui-task-notify"
 
-# CodeGraph + Context7 + Browser-Use MCP 工具集
+# CodeGraph + Context7 MCP 工具集
 dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 # 第三方网页搜索（Tavily / 模型自带联网，可一键交回内置）
@@ -102,7 +99,7 @@ dsh plugin --profile web add -w "github:JiaMingWang-CN/dsh-bundles#path:dsh-clie
 dsh --profile web --dump-config
 ```
 
-首次启动 MCP 工具集时，`npx`/`uvx` 需要下载对应包，耗时会比后续启动更长。
+首次启动 MCP 工具集时，`npx` 需要下载对应包，耗时会比后续启动更长。
 
 ## 插件索引源
 
@@ -136,12 +133,6 @@ CodeGraph 在本地建立代码知识图谱。MCP server 可以服务多个项�
 
 Context7 默认可以直接启动；如果服务端提示限流或要求认证，可运行 `npx ctx7 setup` 完成官方引导配置。
 
-### Browser-Use
-
-- **项目地址**：https://github.com/browser-use/browser-use
-
-Browser-Use 通过 `uvx` 启动，首次运行会下载 Python 包；需要本机有 `uv` 与 Python 3.12。server 进程会驱动真实浏览器执行网页操作。
-
 ## 使用方式
 
 ### 开启任务通知
@@ -169,7 +160,6 @@ Browser-Use 通过 `uvx` 启动，首次运行会下载 Python 包；需要本�
 
 - CodeGraph 查询要求目标项目已有 `.codegraph/`；
 - Context7 不要求项目初始化；
-- Browser-Use 不要求项目初始化，工具调用会驱动真实浏览器；
 - DSH 首次拉起 server 较慢属于正常现象；
 - 可以使用 `dsh --profile web --dump-config` 检查 MCP client 是否进入配置层栈。
 
@@ -207,7 +197,7 @@ codegraph init -i
 
 ### MCP server 第一次启动很慢
 
-CodeGraph 与 Context7 使用 `npx -y`，Browser-Use 使用 `uvx`。第一次运行都需要下载包，后续会使用本机缓存。三者的版本都固定在 `dsh-bundle-mcp-toolkit/patch.yml` 中（CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.5.0`、Browser-Use `browser-use==0.13.14`），启动时不会重新联网解析最新版本；升级时修改该文件中的版本号。
+CodeGraph 与 Context7 使用 `npx -y`。第一次运行都需要下载包，后续会使用本机缓存。两者的版本都固定在 `dsh-bundle-mcp-toolkit/patch.yml` 中（CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.5.0`），启动时不会重新联网解析最新版本；升级时修改该文件中的版本号。
 
 ### 支持哪些 DSH 版本
 
