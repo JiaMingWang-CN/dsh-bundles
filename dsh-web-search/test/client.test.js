@@ -88,7 +88,7 @@ async function mount(remote, mutate, options = {}) {
 	const renders = {};
 	const previousWindow = globalThis.window;
 	const previousDocument = globalThis.document;
-	globalThis.window = { __ModuleLoader__: { load: (record) => { plugin = record.factory(() => hooks.React); } } };
+	globalThis.window = { __ModuleLoader__: { load: (record) => { assert.equal(record.id, "@wjm200509/dsh-web-search"); plugin = record.factory(() => hooks.React); } } };
 	globalThis.document = {
 		createElement: () => ({ remove() {} }),
 		head: { append() {} }

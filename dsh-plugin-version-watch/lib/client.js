@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-plugin-version-watch",
+	id: "@wjm200509/dsh-plugin-version-watch",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

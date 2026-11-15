@@ -6,7 +6,7 @@ async function mount({ enabled = true, sound = "system", permission = "granted",
 	let plugin;
 	const notifications = [];
 	const opened = [];
-	globalThis.window = { __ModuleLoader__: { load: (record) => { plugin = record.factory(() => ({ createElement: () => null })); } }, focus() {} };
+	globalThis.window = { __ModuleLoader__: { load: (record) => { assert.equal(record.id, "@wjm200509/dsh-client-ui-task-notify"); plugin = record.factory(() => ({ createElement: () => null })); } }, focus() {} };
 	globalThis.document = {
 		createElement: () => ({ remove() {} }),
 		head: { append() {} },

@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-memory",
+	id: "@wjm200509/dsh-memory",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

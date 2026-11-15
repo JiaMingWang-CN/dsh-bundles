@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-client-ui-task-notify",
+	id: "@wjm200509/dsh-client-ui-task-notify",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;

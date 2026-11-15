@@ -1,6 +1,6 @@
 {
   "name": "@wjm200509/dsh-client-ui-task-notify",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Session completion system notifications with selectable completion sound; toggle and sound persist in DSH settings",
   "type": "module",
   "author": "JiaMingWang-CN",

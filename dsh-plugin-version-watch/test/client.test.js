@@ -11,7 +11,7 @@ async function load() {
 			children: children.flat().filter((child) => child !== null && child !== undefined && typeof child !== "boolean"),
 		}),
 	};
-	globalThis.window = { __ModuleLoader__: { load: (record) => { plugin = record.factory(() => React); } } };
+	globalThis.window = { __ModuleLoader__: { load: (record) => { assert.equal(record.id, "@wjm200509/dsh-plugin-version-watch"); plugin = record.factory(() => React); } } };
 	globalThis.document = { createElement: () => ({ remove() {} }), head: { append() {} }, baseURI: "http://127.0.0.1:3000/" };
 	await import(`../lib/client.js?test=${Math.random()}`);
 	return plugin;

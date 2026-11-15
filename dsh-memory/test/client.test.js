@@ -11,7 +11,7 @@ async function load() {
 		useState: (init) => [typeof init === "function" ? init() : init, () => {}],
 		useEffect: () => {}
 	};
-	globalThis.window = { __ModuleLoader__: { load: (record) => { plugin = record.factory(() => React); } } };
+	globalThis.window = { __ModuleLoader__: { load: (record) => { assert.equal(record.id, "@wjm200509/dsh-memory"); plugin = record.factory(() => React); } } };
 	globalThis.document = { createElement: () => ({ remove() {} }), head: { append() {} } };
 	await import(`../lib/client.js?test=${Math.random()}`);
 	return plugin;
