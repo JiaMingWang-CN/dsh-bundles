@@ -20,11 +20,22 @@ dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 安装后重启 DSH。首次启动时 `npx` 需要下载对应包，耗时会比后续启动长。
 
+## Context7 登录（首次使用，等同 `npx ctx7 setup`）
+
+Context7 以 **API Key 模式**运行，但不再需要手工改配置填 Key：
+
+1. 插件首次启用且尚未登录时，会自动发起 Context7 的 **OAuth 设备码登录**（与官方 `npx ctx7 setup` 同一个流程、同一个公开 OAuth 端点）；
+2. 在对话里让代理调用 **`context7_login`** 工具，它会返回验证链接和一次性验证码（启动日志里也会打印一份）；
+3. 在浏览器打开链接、输入验证码并批准后，Context7 签发的 API Key 会**自动存入 DSH 凭据库**（`CONTEXT7_API_KEY`，配置文件中只有引用，没有明文）；
+4. 凭据写入后 `mcp-context7` 行会自动重连，`mcp__context7__*` 工具即可使用。
+
+只有未登录时，系统提示里会出现一条简短提示，引导代理调用 `context7_login`；登录后不再出现。Key 保存在 DSH 凭据里，跨插件升级与会话重启都保留。
+
 ## 使用
 
-- 工具以 `mcp__<server>__<tool>` 暴露，例如 `mcp__codegraph__codegraph_explore`；
+- 工具以 `mcp__<server>__<tool>` 暴露，例如 `mcp__codegraph__codegraph_explore`、`mcp__context7__query-docs`；
 - CodeGraph 需要目标项目已建立索引：在项目根目录执行 `codegraph init -i`；
-- Context7 不要求项目初始化；如果服务端提示限流或要求认证，可运行 `npx ctx7 setup`。
+- Context7 首次使用按上文登录一次即可。
 
 版本固定在 `patch.yml` 中：CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.5.0`；启动时不会重新联网解析最新版本，升级时修改该文件中的版本号。
 
@@ -36,6 +47,10 @@ dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 ```powershell
 cd dsh-bundle-mcp-toolkit
+npm test
 ```
 
-目录只有 `patch.yml`（两个 MCP client 行）和本文件；插件不包含 Host/Client 代码。
+- `patch.yml`：三条 loader 行（`context7-auth` 登录插件，以及两个 MCP client 行）；
+- `lib/index.js`：Context7 登录 Host 插件（`context7_login` 工具 + 登录提示 + 凭据写入）；
+- `lib/oauth.js`：Context7 设备码 OAuth 的纯逻辑，`fetch` 可注入，便于测试；
+- `test/oauth.test.js`：设备码流程状态机的单元测试。

@@ -11,11 +11,11 @@
   "dsh-bundle-mcp-toolkit": {
     "title": { "en": "MCP toolkit (CodeGraph, Context7)", "zh": "MCP 工具集" },
     "description": {
-      "en": "Register CodeGraph and Context7 MCP servers over stdio.",
-      "zh": "通过 stdio 注册 CodeGraph、Context7 两个 MCP server。"
+      "en": "Register CodeGraph and Context7 MCP servers over stdio. Context7 signs in with your Context7 account on first use, then runs in API-key mode like npx ctx7 setup.",
+      "zh": "通过 stdio 注册 CodeGraph、Context7 两个 MCP server。Context7 首次使用会用账号登录授权，之后以 API Key 模式运行（与 npx ctx7 setup 一致）。"
     },
     "category": "tools",
-    "keywords": ["mcp", "codegraph", "context7"]
+    "keywords": ["mcp", "codegraph", "context7", "oauth"]
   },
   "dsh-web-search": {
     "title": { "en": "Third-party web search", "zh": "第三方网页搜索" },

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP toolkit",
+    "description": "CodeGraph code search and Context7 library docs as MCP servers. Context7 signs in with your Context7 account on first use, then runs in API-key mode like npx ctx7 setup."
+  }
+}

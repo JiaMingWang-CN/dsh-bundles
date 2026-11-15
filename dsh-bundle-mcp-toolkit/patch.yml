@@ -1,14 +1,22 @@
-# MCP servers: each entry launches one external MCP server over stdio and
-# exposes its tools as mcp__<serverName>__<tool>. codegraph answers queries
-# for ANY project that has a .codegraph/ index via its per-call `projectPath`
-# argument. codegraph/context7 use `npx -y`, so no global install is required
-# (first launch downloads the package; codegraph requires a .codegraph/ index
-# in the queried project — create one with `codegraph init`). Versions are
-# pinned so a launch never re-resolves "latest" over the network and an
-# upstream release cannot break startup; bump them deliberately. The CodeGraph
-# package is the scoped @colbymchenry/codegraph (the unscoped `codegraph` on
-# npm is an unrelated package).
+# MCP toolkit bundle. Each MCP row launches one external MCP server over stdio
+# and exposes its tools as mcp__<serverName>__<tool>. codegraph answers queries
+# for ANY project that has a .codegraph/ index via its per-call `projectPath`.
+#
+# Context7 runs in API-key mode. The `context7-auth` host row performs Context7's
+# OAuth device-flow login on first use (the same flow as `npx ctx7 setup`),
+# stores the issued API key in the DSH credential store as CONTEXT7_API_KEY, and
+# the mcp-context7 row reads it through ${credential:CONTEXT7_API_KEY}. No
+# plaintext key lives in this file: until a key exists the mcp-context7 row stays
+# in waiting-credentials, and storing the key reconnects it automatically.
+#
+# Versions are pinned so a launch never re-resolves "latest" over the network
+# and an upstream release cannot break startup; bump them deliberately. The
+# CodeGraph package is the scoped @colbymchenry/codegraph (the unscoped
+# `codegraph` on npm is an unrelated package). Both servers use `npx -y`, so no
+# global install is required.
 - insert:
+    - id: context7-auth
+      name: '@wjm200509/dsh-bundle-mcp-toolkit'
     - id: mcp-codegraph
       name: '@deepseek-ai/dsh-mcp-client'
       config:
@@ -24,3 +32,6 @@
         transport: stdio
         command: npx
         args: ['-y', '@upstash/context7-mcp@4.5.0']
+        expandTemplates: true
+        env:
+          CONTEXT7_API_KEY: '${credential:CONTEXT7_API_KEY}'
