@@ -128,7 +128,7 @@ CodeGraph builds a local knowledge graph for source code. One MCP server can ser
 
 - **Project**: https://github.com/upstash/context7
 
-Context7 starts without manual setup by default. If the service reports rate limits or requests authentication, run `npx ctx7 setup` and follow the official guided setup.
+Context7 runs in API-key mode and the key is never typed by hand: on first use the plugin reuses an existing `ctx7` login or starts the device-code login, then stores the issued key in the DSH credential store (see `dsh-bundle-mcp-toolkit/README.md`).
 
 ## Using the bundles
 
@@ -194,7 +194,7 @@ codegraph init -i
 
 ### The MCP server is slow on first launch
 
-CodeGraph and Context7 use `npx -y`. The first run downloads the package; later runs use the local cache. Both versions are pinned in `dsh-bundle-mcp-toolkit/patch.yml` (CodeGraph `@colbymchenry/codegraph@1.6.2`, Context7 `@upstash/context7-mcp@4.5.0`), so startup never re-resolves the latest release over the network; edit the versions there to upgrade.
+CodeGraph and Context7 use `npx -y`. The first run downloads the package; later runs use the local cache. Both versions are pinned, so startup never re-resolves the latest release over the network: CodeGraph `@colbymchenry/codegraph@1.6.2` in `dsh-bundle-mcp-toolkit/patch.yml`, and Context7 `@upstash/context7-mcp@4.5.0` in `dsh-bundle-mcp-toolkit/lib/context7-mcp.js` (the Context7 MCP row is mounted by the plugin once the credentials provider is active, so it cannot be a static loader row); edit the version in the matching file to upgrade.
 
 ### Which DSH versions are supported
 

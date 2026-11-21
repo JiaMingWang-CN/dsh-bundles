@@ -27,9 +27,11 @@ Context7 以 **API Key 模式**运行，但不再需要手工改配置填 Key。
 1. **优先复用官方登录**：若本机已有官方 `ctx7` CLI 保存的凭据文件（`~/.config/context7/credentials.json`，遵循 `XDG_CONFIG_HOME`，并兼容旧路径 `~/.context7/credentials.json`）且含 `access_token`，直接导入为 DSH 凭据 `CONTEXT7_API_KEY`，无需再次登录；
 2. 若没有可复用凭据，则自动发起 Context7 的 **OAuth 设备码登录**（与官方 `npx ctx7 setup` 同一个流程、同一个公开 OAuth 端点）；
 3. 在对话里让代理调用 **`context7_login`** 工具，它会返回验证链接和一次性验证码（启动日志里也会打印一份）；
-4. 在浏览器批准后，签发的 API Key **自动存入 DSH 凭据库**（`CONTEXT7_API_KEY`，配置文件中只有引用，没有明文）；凭据写入后 `mcp-context7` 行会自动重连，`mcp__context7__*` 工具即可使用。
+4. 在浏览器批准后，签发的 API Key **自动存入 DSH 凭据库**（`CONTEXT7_API_KEY`，配置文件中只有引用，没有明文）；凭据写入后 Context7 MCP 客户端会自动重连，`mcp__context7__*` 工具即可使用。
 
 只有未登录时，系统提示里会出现一条简短提示，引导代理调用 `context7_login`；登录后不再出现。Key 保存在 DSH 凭据里，跨插件升级与会话重启都保留。
+
+> Context7 的 MCP 行由本包的 Host 插件在激活时挂载，不写在 `patch.yml` 里：`dsh-mcp-client` 只在凭据提供者**已激活**时才接受 `${credential:…}` 模板，而静态 loader 行会和异步初始化的凭据插件同时启动，因而每次启动都会加载失败。详见 `lib/context7-mcp.js` 的注释。
 
 ## 使用
 
@@ -37,7 +39,7 @@ Context7 以 **API Key 模式**运行，但不再需要手工改配置填 Key。
 - CodeGraph 需要目标项目已建立索引：在项目根目录执行 `codegraph init -i`；
 - Context7 首次使用按上文登录一次即可。
 
-版本固定在 `patch.yml` 中：CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.5.0`；启动时不会重新联网解析最新版本，升级时修改该文件中的版本号。
+版本固定、启动时不重新联网解析：CodeGraph `@colbymchenry/codegraph@1.6.2` 在 `patch.yml` 中，Context7 `@upstash/context7-mcp@4.5.0` 在 `lib/context7-mcp.js` 中；升级时修改对应文件里的版本号。
 
 ## 兼容
 
@@ -50,8 +52,10 @@ cd dsh-bundle-mcp-toolkit
 npm test
 ```
 
-- `patch.yml`：三条 loader 行（`context7-auth` 登录插件，以及两个 MCP client 行）；
-- `lib/index.js`：Context7 登录 Host 插件（`context7_login` 工具 + 登录提示 + 凭据写入）；
+- `patch.yml`：两条 loader 行（`context7-auth` 登录 Host 插件、CodeGraph 的 MCP client 行）；
+- `lib/index.js`：Context7 登录 Host 插件（`context7_login` 工具 + 登录提示 + 凭据写入），并挂载 Context7 的 MCP 行；
+- `lib/context7-mcp.js`：Context7 MCP 行的配置与挂载时机（必须在凭据提供者激活后挂载，注释里写了原因）；
 - `lib/oauth.js`：Context7 设备码 OAuth 的纯逻辑，`fetch` 可注入，便于测试；
 - `lib/ctx7-store.js`：读取官方 `ctx7` CLI 已保存的凭据文件（含 XDG/legacy 路径），复用已有登录；
-- `test/oauth.test.js`、`test/ctx7-store.test.js`：设备码状态机与凭据文件读取的单元测试。
+- `test/oauth.test.js`、`test/ctx7-store.test.js`：设备码状态机与凭据文件读取的单元测试；
+- `test/context7-mcp.test.js`、`test/patch.test.js`：挂载契约与「静态行不得携带凭据模板」的回归守卫。

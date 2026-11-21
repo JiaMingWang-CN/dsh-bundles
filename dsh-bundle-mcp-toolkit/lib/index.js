@@ -1,18 +1,21 @@
 /**
  * dsh-bundle-mcp-toolkit — Context7 sign-in host half.
  *
- * The bundle's `patch.yml` runs the Context7 MCP server in API-key mode: the
- * `mcp-context7` row reads `CONTEXT7_API_KEY` from the DSH credential store via
- * `${credential:CONTEXT7_API_KEY}`. Nothing in the configuration ever holds the
- * key, and until a key exists that row simply waits for credentials.
+ * Context7 runs in API-key mode: its MCP client row reads `CONTEXT7_API_KEY`
+ * from the DSH credential store via `${credential:CONTEXT7_API_KEY}`. Nothing in
+ * the configuration ever holds the key, and until a key exists the row simply
+ * waits for credentials.
+ *
+ * That row is mounted from here rather than configured in `patch.yml`; see
+ * ./context7-mcp.js for why a static row cannot load this template.
  *
  * This plugin closes the loop so the experience matches the official
  * `npx ctx7 setup`: on first use it starts Context7's OAuth device flow, hands
  * the user the verification link and one-time code through the `context7_login`
  * tool, polls until approval, and then stores the issued API key with
  * `ctx.credentials.set`. Storing the key fires the credential-update event the
- * MCP client listens on, so the `mcp-context7` row reconnects and starts serving
- * tools — without editing any configuration file.
+ * MCP client listens on, so the mounted row reconnects and starts serving tools
+ * — without editing any configuration file.
  *
  * While no key is configured a short system-prompt note tells the model to call
  * `context7_login` and pass the link to the user, so a fresh install signs in on
@@ -22,19 +25,18 @@
  */
 
 import { hostname } from 'node:os'
+import * as McpClient from '@deepseek-ai/dsh-mcp-client'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { startDeviceAuthorization, pollDeviceToken } from './oauth.js'
 import { readCtx7ApiKey } from './ctx7-store.js'
+import { API_KEY_REF, mountContext7 } from './context7-mcp.js'
 
 /** Stable Cordis plugin name. */
 export const name = 'context7-auth'
 
 /** Host services this plugin needs. */
 export const inject = ['tools', 'credentials', 'systemPrompt']
-
-/** Credential reference the MCP row reads. */
-const API_KEY_REF = 'CONTEXT7_API_KEY'
 
 /** Poll backoff added on `slow_down` / transient failures, in milliseconds. */
 const BACKOFF_MS = 5_000
@@ -257,6 +259,11 @@ export function apply(ctx) {
   const login = new Context7Login(ctx)
 
   ctx.effect(() => () => login.dispose())
+
+  // `inject` above waits for an active `credentials` provider, so the Context7
+  // row's `${credential:…}` template is loadable here; a static patch row is
+  // not (see context7-mcp.js).
+  ctx.effect(() => mountContext7(ctx, McpClient), 'context7-auth.mcp-server')
 
   ctx.on('credentials/reference-updated', (subject) => {
     if (subject === String(credentialRef(API_KEY_REF))) {

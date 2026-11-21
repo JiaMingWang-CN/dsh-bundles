@@ -128,7 +128,7 @@ CodeGraph 在本地建立代码知识图谱。MCP server 可以服务多个项�
 
 - **项目地址**：https://github.com/upstash/context7
 
-Context7 默认可以直接启动；如果服务端提示限流或要求认证，可运行 `npx ctx7 setup` 完成官方引导配置。
+Context7 以 API Key 模式运行，Key 不用手填：首次使用时由插件复用已有 `ctx7` 登录或发起设备码登录，批准后自动存入 DSH 凭据库（见 `dsh-bundle-mcp-toolkit/README.md`）。
 
 ## 使用方式
 
@@ -194,7 +194,7 @@ codegraph init -i
 
 ### MCP server 第一次启动很慢
 
-CodeGraph 与 Context7 使用 `npx -y`。第一次运行都需要下载包，后续会使用本机缓存。两者的版本都固定在 `dsh-bundle-mcp-toolkit/patch.yml` 中（CodeGraph `@colbymchenry/codegraph@1.6.2`、Context7 `@upstash/context7-mcp@4.5.0`），启动时不会重新联网解析最新版本；升级时修改该文件中的版本号。
+CodeGraph 与 Context7 使用 `npx -y`。第一次运行都需要下载包，后续会使用本机缓存。版本都固定、启动时不会重新联网解析最新版本：CodeGraph `@colbymchenry/codegraph@1.6.2` 写在 `dsh-bundle-mcp-toolkit/patch.yml`，Context7 `@upstash/context7-mcp@4.5.0` 写在 `dsh-bundle-mcp-toolkit/lib/context7-mcp.js`（Context7 的 MCP 行由插件在凭据提供者激活后挂载，不能写成静态 loader 行）；升级时修改对应文件里的版本号。
 
 ### 支持哪些 DSH 版本
 
