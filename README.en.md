@@ -2,7 +2,7 @@
 
 [中文](README.md) · **English**
 
-A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 MCP toolkit, a third-party web search provider with one switch back to the built-in search, cross-session memory with automatic dreaming. All four packages are published on npm under the `@wjm200509` scope.
+A set of standalone plugins for the DeepSeek Harness (dsh) web profile: task-completion notifications, a CodeGraph + Context7 MCP toolkit, a third-party web search provider with one switch back to the built-in search. All three packages are published on npm under the `@wjm200509` scope.
 
 Each directory is an independently installable bundle. Install only what you need.
 
@@ -48,15 +48,6 @@ CodeGraph and Context7 launch through `npx -y`; no global package installation i
 - Master switch off: hands `web_search` back to DSH's built-in DeepSeek search (Messages, or the newer Search API if that was selected last);
 - API keys are stored through the credentials domain, never as profile-settings plaintext.
 
-### Cross-session memory
-
-`dsh-memory` lets the agent remember, across sessions, the mistakes it made, the approaches that worked, and the rules it verified:
-
-- Memory has a project partition and a user partition; each session starts with both indexes injected (4 KB each), and notes are read on demand;
-- After a session ends, automatic dreaming runs a hidden background agent that corrects, merges and compacts memory against the session transcripts, one run at a time;
-- The Memory page in the Settings sidebar shows the run log and queue and has a "dream now" button; a failure pauses automatic dreaming until a manual run succeeds;
-- `/dream` consolidates the current project now; dreaming spends your own model tokens and automatic runs can be turned off.
-
 ## Quick install
 
 ### Requirements
@@ -67,7 +58,7 @@ CodeGraph and Context7 launch through `npx -y`; no global package installation i
 
 ### Install from npm
 
-All four packages are published on npm under the `@wjm200509` scope. Run the commands for the bundles you want:
+All three packages are published on npm under the `@wjm200509` scope. Run the commands for the bundles you want:
 
 ```powershell
 # Task-completion notifications
@@ -78,9 +69,6 @@ dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 # Third-party web search (Tavily / model-native, one switch back to built-in)
 dsh plugin --profile web add -w "@wjm200509/dsh-web-search"
-
-# Cross-session memory with automatic dreaming
-dsh plugin --profile web add -w "@wjm200509/dsh-memory"
 ```
 
 Source-directory installs from GitHub still work:
@@ -106,7 +94,7 @@ This repository also serves as a DSH plugin-market index. `index.json` is genera
 https://jiamingwang-cn.github.io/dsh-bundles/index.json
 ```
 
-Add that URL under **Plugins → Discover → Add index source** to search, open and install the four packages (enable the "Custom plugin indexes" experimental bundle first).
+Add that URL under **Plugins → Discover → Add index source** to search, open and install the three packages (enable the "Custom plugin indexes" experimental bundle first).
 
 Regenerate and check locally:
 
@@ -149,10 +137,6 @@ A notification is sent only when a main session transitions from running to comp
 
 Switching takes effect immediately with no restart; per-engine setup and billing notes live in `dsh-web-search/README.md`.
 
-### Using cross-session memory
-
-Memory is on after install and the agent reads and writes it on its own. Open Settings → Memory to turn off automatic dreaming, change the idle threshold and concurrency, or pick the dreaming model; type `/dream` in a session to consolidate the current project now. Memory is plain Markdown under `~/.dsh/memory/` that you can read and edit. See `dsh-memory/README.md`.
-
 ### Use the MCP tools
 
 - CodeGraph queries require a `.codegraph/` index in the target project;
@@ -177,7 +161,7 @@ dsh plugin --profile web update @wjm200509/dsh-web-search
 Remove these bundles:
 
 ```powershell
-dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search @wjm200509/dsh-memory
+dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search
 ```
 
 Restart DSH after updating or uninstalling.
@@ -198,7 +182,7 @@ CodeGraph and Context7 use `npx -y`. The first run downloads the package; later 
 
 ### Which DSH versions are supported
 
-All four packages are adapted to DSH **0.2.2-rc.1** (current latest): the host halves mount, and the
+All three packages are adapted to DSH **0.2.2-rc.1** (current latest): the host halves mount, and the
 tests of `dsh-web-search` and `dsh-client-ui-task-notify` run directly against the 0.2.2-rc.1 contract
 packages. Their `engines.dsh` range keeps
 `0.1.7-rc.2`, `0.2.0-rc.2`, `0.2.1-alpha.x`, and `0.2.2-rc.1`. The search plugin only adds a third-party provider;
@@ -227,7 +211,6 @@ Clone the repository and install each bundle by local path:
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-memory
 ```
 
 Run the tests (web search ships a `node --test` suite):
@@ -244,7 +227,6 @@ dsh-bundles/
 ├── dsh-client-ui-task-notify/
 ├── dsh-bundle-mcp-toolkit/
 ├── dsh-web-search/
-├── dsh-memory/
 ├── market/display.json              # titles, descriptions and categories for the index
 ├── scripts/build-market-index.mjs   # writes _site/index.json from the npm registry
 └── .github/workflows/plugin-market.yml

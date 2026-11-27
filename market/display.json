@@ -25,14 +25,5 @@
     },
     "category": "search",
     "keywords": ["web-search", "tavily", "model-native"]
-  },
-  "dsh-memory": {
-    "title": { "en": "Cross-session memory", "zh": "跨会话记忆" },
-    "description": {
-      "en": "Notes the agent keeps across sessions, with automatic dreaming that corrects and compacts them.",
-      "zh": "让 agent 跨会话记住教训与做法，并在会话结束后自动整理记忆。"
-    },
-    "category": "memory",
-    "keywords": ["memory", "dreaming"]
   }
 }

@@ -71,7 +71,6 @@ const index = {
     categories: {
       ui: { title: { en: 'Web UI', zh: '界面' } },
       tools: { title: { en: 'Tools', zh: '工具' } },
-      memory: { title: { en: 'Memory', zh: '记忆' } },
       search: { title: { en: 'Search', zh: '搜索' } },
     },
   },

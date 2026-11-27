@@ -2,7 +2,7 @@
 
 **中文** · [English](README.en.md)
 
-一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 MCP 工具集、可一键交回内置的第三方网页搜索、带自动 dreaming 的跨会话记忆。四个包都发布在 npm 的 `@wjm200509` scope 下。
+一组面向 DeepSeek Harness（dsh）web profile 的独立插件：任务完成通知、CodeGraph + Context7 MCP 工具集、可一键交回内置的第三方网页搜索。三个包都发布在 npm 的 `@wjm200509` scope 下。
 
 每个目录都是一个可单独安装的 bundle。只安装需要的部分即可。
 
@@ -48,15 +48,6 @@ CodeGraph 与 Context7 由 `npx -y` 启动，都不要求全局安装。
 - 关闭总开关：交回 DSH 内置 DeepSeek 搜索（Messages 或新版 Search API，按上次选择恢复）；
 - API Key 经 credentials 域保存，不落 profile 设置文件明文。
 
-### 跨会话记忆
-
-`dsh-memory` 让 agent 跨会话记住犯过的错、做成功的路子和验证过的规则：
-
-- 记忆分项目级与用户级，每个会话开始时注入两份限容 4 KB 的索引，正文按需读取；
-- 会话结束后自动 dreaming：后台隐藏 agent 对照会话记录纠错、合并、精简记忆，不同项目并行（默认最多 4 个）、同一项目串行；
-- 设置侧栏“记忆”页可查看运行日志、待处理数并“立即 dream”；失败会暂停自动 dreaming，修好模型后手动补跑即恢复；
-- `/dream` 立即整理当前项目；dreaming 消耗自己的模型 token，可在设置页关闭自动运行。
-
 ## 快速安装
 
 ### 前置条件
@@ -67,7 +58,7 @@ CodeGraph 与 Context7 由 `npx -y` 启动，都不要求全局安装。
 
 ### 从 npm 安装
 
-四个包都发布在 npm 的 `@wjm200509` scope 下，分别执行需要的命令：
+三个包都发布在 npm 的 `@wjm200509` scope 下，分别执行需要的命令：
 
 ```powershell
 # 任务完成通知
@@ -78,9 +69,6 @@ dsh plugin --profile web add -w "@wjm200509/dsh-bundle-mcp-toolkit"
 
 # 第三方网页搜索（Tavily / 模型自带联网，可一键交回内置）
 dsh plugin --profile web add -w "@wjm200509/dsh-web-search"
-
-# 跨会话记忆 + 自动 dreaming
-dsh plugin --profile web add -w "@wjm200509/dsh-memory"
 ```
 
 也可以从 GitHub 源码目录安装：
@@ -106,7 +94,7 @@ dsh --profile web --dump-config
 https://jiamingwang-cn.github.io/dsh-bundles/index.json
 ```
 
-在 DSH 的 **Plugins → Discover → Add index source** 里添加该地址即可搜索、查看条目并一键安装上面的四个包（需先打开实验功能「Custom plugin indexes」）。
+在 DSH 的 **Plugins → Discover → Add index source** 里添加该地址即可搜索、查看条目并一键安装上面的三个包（需先打开实验功能「Custom plugin indexes」）。
 
 本地重新生成并检查：
 
@@ -149,10 +137,6 @@ Context7 以 API Key 模式运行，Key 不用手填：首次使用时由插件�
 
 切换即时生效、无需重启；各引擎的开通与计费说明见 `dsh-web-search/README.md`。
 
-### 使用跨会话记忆
-
-安装后默认开启，agent 会自行读写记忆。打开“设置 → 记忆”可以关闭自动 dreaming、调整空闲阈值、并发数或指定 dreaming 模型；在会话里输入 `/dream` 可立即整理当前项目。记忆是 `~/.dsh/memory/` 下的普通 Markdown，可直接查看和编辑。说明见 `dsh-memory/README.md`。
-
 ### 使用 MCP 工具
 
 - CodeGraph 查询要求目标项目已有 `.codegraph/`；
@@ -177,7 +161,7 @@ dsh plugin --profile web update @wjm200509/dsh-web-search
 卸载本仓库的 bundle：
 
 ```powershell
-dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search @wjm200509/dsh-memory
+dsh plugin --profile web remove -w @wjm200509/dsh-client-ui-task-notify @wjm200509/dsh-bundle-mcp-toolkit @wjm200509/dsh-web-search
 ```
 
 更新或卸载后建议重启 DSH。
@@ -198,7 +182,7 @@ CodeGraph 与 Context7 使用 `npx -y`。第一次运行都需要下载包，后
 
 ### 支持哪些 DSH 版本
 
-四个包均已适配 DSH **0.2.2-rc.1**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 与 `dsh-client-ui-task-notify` 的单测直接跑在
+三个包均已适配 DSH **0.2.2-rc.1**（当前最新）：Host 半边可正常挂载，`dsh-web-search` 与 `dsh-client-ui-task-notify` 的单测直接跑在
 0.2.2-rc.1 契约包上。它们的 `engines.dsh` 同时保留 `0.1.7-rc.2`、`0.2.0-rc.2`、`0.2.1-alpha.x` 与 `0.2.2-rc.1`。搜索插件只增加
 第三方 provider；关闭总开关会写回内置 provider，0.2.1 新增的内置 `web-deepseek-api` 与本插件互不影响。
 
@@ -224,7 +208,6 @@ pnpm install
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-client-ui-task-notify
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-bundle-mcp-toolkit
 dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-web-search
-dsh plugin --profile web add -w C:\path\to\dsh-bundles\dsh-memory
 ```
 
 运行测试（网页搜索带 `node --test` 测试）：
@@ -241,7 +224,6 @@ dsh-bundles/
 ├── dsh-client-ui-task-notify/
 ├── dsh-bundle-mcp-toolkit/
 ├── dsh-web-search/
-├── dsh-memory/
 ├── market/display.json              # 索引里的标题、描述、分类
 ├── scripts/build-market-index.mjs   # 从 npm registry 生成 _site/index.json
 └── .github/workflows/plugin-market.yml
