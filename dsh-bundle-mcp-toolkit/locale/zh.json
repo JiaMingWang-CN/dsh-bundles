@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "MCP 工具集",
-    "description": "通过 MCP 提供 CodeGraph 代码检索与 Context7 库文档。Context7 首次使用时会用你的 Context7 账号登录授权，之后以 API Key 模式运行（与 npx ctx7 setup 一致）。"
-  }
-}
